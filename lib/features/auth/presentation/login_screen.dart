@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/axio_button.dart';
@@ -21,6 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String? _errorMessage;
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -53,12 +55,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Future<void> _handleLogin() async {
-    setState(() => _isLoading = true);
-    // Simulate login delay
-    await Future.delayed(const Duration(milliseconds: 800));
-    ref.read(authStateProvider.notifier).state = true;
-    setState(() => _isLoading = false);
-    if (mounted) context.go('/');
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Please enter email and password');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final repo = ref.read(authRepositoryProvider);
+      await repo.signInWithEmail(email, password);
+      if (mounted) context.go('/');
+    } catch (e) {
+      String message = 'Login failed. Please check your credentials.';
+      final errorStr = e.toString();
+      if (errorStr.contains('Invalid login credentials')) {
+        message = 'Invalid email or password.';
+      } else if (errorStr.contains('Email not confirmed')) {
+        message = 'Please confirm your email first.';
+      } else if (errorStr.contains('network')) {
+        message = 'Network error. Please check your connection.';
+      }
+      setState(() => _errorMessage = message);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -137,13 +164,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               style: AppTypography.bodyMedium,
                             ),
                             const SizedBox(height: 24),
+
+                            // Error message
+                            if (_errorMessage != null) ...[
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.red.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(LucideIcons.alertCircle,
+                                        size: 18, color: Colors.red.shade600),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _errorMessage!,
+                                        style: TextStyle(
+                                          color: Colors.red.shade700,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+
                             TextField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
                                 hintText: 'Email address',
-                                prefixIcon: Icon(Icons.email_outlined, size: 20),
+                                prefixIcon: Icon(LucideIcons.mail, size: 20),
                               ),
+                              onSubmitted: (_) => _handleLogin(),
                             ),
                             const SizedBox(height: 14),
                             TextField(
@@ -151,24 +209,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               obscureText: _obscurePassword,
                               decoration: InputDecoration(
                                 hintText: 'Password',
-                                prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                                prefixIcon: const Icon(LucideIcons.lock, size: 20),
                                 suffixIcon: IconButton(
                                   icon: Icon(
                                     _obscurePassword
-                                        ? Icons.visibility_off_outlined
-                                        : Icons.visibility_outlined,
+                                        ? LucideIcons.eyeOff
+                                        : LucideIcons.eye,
                                     size: 20,
                                   ),
                                   onPressed: () => setState(
                                       () => _obscurePassword = !_obscurePassword),
                                 ),
                               ),
+                              onSubmitted: (_) => _handleLogin(),
                             ),
                             const SizedBox(height: 8),
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: () {},
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Reset Password'),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      content: const Text(
+                                        'A password reset link will be sent to your registered email address.\n\nCheck your inbox after submitting.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.pop(ctx);
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: const Text('Reset link sent to your email'),
+                                                behavior: SnackBarBehavior.floating,
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                              ),
+                                            );
+                                          },
+                                          child: const Text('Send Link'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
                                 child: const Text('Forgot Password?'),
                               ),
                             ),

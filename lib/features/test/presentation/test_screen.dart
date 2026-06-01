@@ -1,39 +1,61 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../shared/data/mock_data.dart';
 import '../../../shared/models/enums.dart';
 import '../domain/test_models.dart';
+import '../data/test_providers.dart';
 import 'widgets/question_view.dart';
 import 'widgets/question_grid.dart';
 
-class TestScreen extends StatefulWidget {
+class TestScreen extends ConsumerStatefulWidget {
   final String testId;
   const TestScreen({super.key, required this.testId});
 
   @override
-  State<TestScreen> createState() => _TestScreenState();
+  ConsumerState<TestScreen> createState() => _TestScreenState();
 }
 
-class _TestScreenState extends State<TestScreen> {
-  late Test _test;
+class _TestScreenState extends ConsumerState<TestScreen> {
+  Test? _test;
   int _currentIndex = 0;
   final Map<String, UserAnswer> _answers = {};
   late Duration _timeRemaining;
   Timer? _timer;
   bool _showGrid = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _test = MockData.diagnosticTest;
-    _timeRemaining = _test.duration;
-    _startTimer();
-    // Initialize empty answers
-    for (final q in _test.questions) {
-      _answers[q.id] = UserAnswer(questionId: q.id);
+    _timeRemaining = const Duration(hours: 1); // Default, updated when test loads
+    _loadTest();
+  }
+
+  Future<void> _loadTest() async {
+    try {
+      final repo = ref.read(testRepositoryProvider);
+      final test = await repo.getTestWithQuestions(widget.testId);
+      if (mounted) {
+        setState(() {
+          _test = test;
+          _timeRemaining = test.duration;
+          _isLoading = false;
+          for (final q in test.questions) {
+            _answers[q.id] = UserAnswer(questionId: q.id);
+          }
+        });
+        _startTimer();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load test: $e')),
+        );
+      }
     }
   }
 
@@ -80,13 +102,15 @@ class _TestScreenState extends State<TestScreen> {
   }
 
   void _submitTest() {
+    final test = _test;
+    if (test == null) return;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Submit Test?'),
         content: Text(
-          'You have answered ${_answers.values.where((a) => a.isAnswered).length} of ${_test.totalQuestions} questions.',
+          'You have answered ${_answers.values.where((a) => a.isAnswered).length} of ${test.totalQuestions} questions.',
         ),
         actions: [
           TextButton(
@@ -106,8 +130,10 @@ class _TestScreenState extends State<TestScreen> {
   }
 
   AnswerStatus _statusFor(int index) {
+    final test = _test;
+    if (test == null) return AnswerStatus.unanswered;
     if (index == _currentIndex) return AnswerStatus.current;
-    final q = _test.questions[index];
+    final q = test.questions[index];
     final answer = _answers[q.id];
     if (answer == null) return AnswerStatus.unanswered;
     if (answer.markedForReview) return AnswerStatus.markedForReview;
@@ -130,7 +156,15 @@ class _TestScreenState extends State<TestScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final question = _test.questions[_currentIndex];
+    if (_isLoading || _test == null) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundGradientEnd,
+        appBar: AppBar(backgroundColor: AppColors.cardBackground),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    final test = _test!;
+    final question = test.questions[_currentIndex];
     final currentAnswer = _answers[question.id];
 
     return Scaffold(
@@ -164,7 +198,7 @@ class _TestScreenState extends State<TestScreen> {
               children: [
                 const Icon(Icons.grid_view_rounded, size: 18),
                 const SizedBox(width: 4),
-                Text('${_currentIndex + 1}/${_test.totalQuestions}'),
+                Text('${_currentIndex + 1}/${test.totalQuestions}'),
               ],
             ),
           ),
@@ -225,7 +259,7 @@ class _TestScreenState extends State<TestScreen> {
                       else
                         const SizedBox(width: 100),
                       const Spacer(),
-                      if (_currentIndex < _test.totalQuestions - 1)
+                      if (_currentIndex < test.totalQuestions - 1)
                         ElevatedButton.icon(
                           onPressed: () =>
                               setState(() => _currentIndex++),
@@ -245,7 +279,7 @@ class _TestScreenState extends State<TestScreen> {
           // Question grid overlay
           if (_showGrid)
             QuestionGrid(
-              totalQuestions: _test.totalQuestions,
+              totalQuestions: test.totalQuestions,
               currentIndex: _currentIndex,
               statusFor: _statusFor,
               onQuestionTap: _goToQuestion,

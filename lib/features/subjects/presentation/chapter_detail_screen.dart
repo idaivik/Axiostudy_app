@@ -1,44 +1,64 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/gradient_background.dart';
 import '../../../core/widgets/progress_bar.dart';
 import '../../../core/widgets/subject_badge.dart';
-import '../../../shared/data/mock_data.dart';
+import '../data/subjects_providers.dart';
 import '../domain/subject_models.dart';
-
-class ChapterDetailScreen extends StatelessWidget {
+class ChapterDetailScreen extends ConsumerWidget {
   final String subjectId;
   const ChapterDetailScreen({super.key, required this.subjectId});
 
   @override
-  Widget build(BuildContext context) {
-    final subject = MockData.subjects.firstWhere(
-      (s) => s.id == subjectId,
-      orElse: () => MockData.subjects.first,
-    );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final subjectsAsync = ref.watch(subjectsProvider);
 
-    return GradientBackground(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: Text('${subject.icon} ${subject.name}'),
+    return subjectsAsync.when(
+      loading: () => const GradientBackground(
+        child: Center(child: CircularProgressIndicator()),
       ),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        physics: const BouncingScrollPhysics(),
-        itemCount: subject.chapters.length,
-        itemBuilder: (context, index) {
-          final chapter = subject.chapters[index];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _ChapterCard(chapter: chapter),
-          );
-        },
+      error: (err, _) => GradientBackground(
+        child: Center(child: Text('Error loading data')),
       ),
+      data: (subjects) {
+        final subject = subjects.firstWhere(
+          (s) => s.id == subjectId,
+          orElse: () => subjects.first,
+        );
+
+        return GradientBackground(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(LucideIcons.arrowLeft),
+              onPressed: () => context.pop(),
+            ),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(subject.iconData, size: 20, color: AppColors.textDark),
+                const SizedBox(width: 8),
+                Text(subject.name),
+              ],
+            ),
+          ),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            physics: const BouncingScrollPhysics(),
+            itemCount: subject.chapters.length,
+            itemBuilder: (context, index) {
+              final chapter = subject.chapters[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _ChapterCard(chapter: chapter),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -129,7 +149,7 @@ class _ChapterCardState extends State<_ChapterCard> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {},
+                      onPressed: () => context.push('/test-selection'),
                       child: const Text('Practice Now'),
                     ),
                   ),

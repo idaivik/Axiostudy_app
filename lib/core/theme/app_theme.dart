@@ -5,8 +5,8 @@ import 'app_colors.dart';
 /// Complete ThemeData for AxioStudy.
 ///
 /// Uses Material 3 with custom color scheme, card styling,
-/// button themes, and input decorations matching the soft pink
-/// design system.
+/// button themes, and input decorations matching the deep indigo
+/// professional design system.
 class AppTheme {
   AppTheme._();
 
@@ -132,7 +132,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        shadowColor: AppColors.primary.withValues(alpha: 0.08),
+        shadowColor: AppColors.primary.withValues(alpha: 0.06),
         margin: EdgeInsets.zero,
       );
 

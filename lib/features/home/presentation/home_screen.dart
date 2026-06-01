@@ -4,13 +4,21 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../features/auth/data/auth_providers.dart';
-import 'widgets/score_trends_card.dart';
-import 'widgets/study_streak_card.dart';
-import 'widgets/daily_goal_card.dart';
-import 'widgets/upcoming_tests_card.dart';
-import 'widgets/areas_to_improve_card.dart';
 import '../../../features/onboarding/presentation/diagnostic_modal.dart';
+import 'widgets/readiness_banner.dart';
+import 'widgets/todays_plan_card.dart';
+import 'widgets/strength_meter_card.dart';
+import 'widgets/score_trends_card.dart';
+import 'widgets/upcoming_tests_card.dart';
 
+/// Home screen — the "Smart Coach" dashboard.
+///
+/// Information hierarchy:
+/// 1. Greeting + Readiness score
+/// 2. Today's Plan (primary CTA)
+/// 3. Strength Meter (subject progress)
+/// 4. Recent Performance (score trends)
+/// 5. Next Test (single upcoming test)
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -39,16 +47,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(currentUserProvider);
+    final userAsync = ref.watch(currentUserProvider);
+    final user = userAsync.valueOrNull;
 
     return SafeArea(
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // Header
+          // Header — clean, professional greeting
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
               child: Row(
                 children: [
                   Expanded(
@@ -56,12 +65,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Hi, ${user?.name.split(' ').first ?? 'Student'} 👋',
+                          'Hi, ${user?.name.split(' ').first ?? 'Student'}',
                           style: AppTypography.heading1,
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Let\'s crush your goals today!',
+                          'Here\'s your study plan for today',
                           style: AppTypography.bodyMedium,
                         ),
                       ],
@@ -93,17 +102,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // Dashboard cards
+          // Dashboard cards — strict priority order
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 8),
-                const DailyGoalCard(),
+                const ReadinessBanner(),
+                const TodaysPlanCard(),
+                const StrengthMeterCard(),
                 const ScoreTrendsCard(),
-                const StudyStreakCard(),
-                const UpcomingTestsCard(),
-                const AreasToImproveCard(),
+                const UpcomingTestCard(),
                 const SizedBox(height: 100),
               ]),
             ),

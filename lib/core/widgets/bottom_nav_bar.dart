@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_colors.dart';
 
 /// Custom bottom navigation bar with 4 tabs.
-/// Home | Practice | Progress | Menu
+/// Home | Practice | Tests | Profile
 class BottomNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -20,7 +21,7 @@ class BottomNavBar extends StatelessWidget {
         color: AppColors.cardBackground,
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.08),
+            color: AppColors.primary.withValues(alpha: 0.06),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),
@@ -33,25 +34,25 @@ class BottomNavBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _NavItem(
-                icon: Icons.home_rounded,
+                icon: LucideIcons.layoutDashboard,
                 label: 'Home',
                 isActive: currentIndex == 0,
                 onTap: () => onTap(0),
               ),
               _NavItem(
-                icon: Icons.add_circle_outline_rounded,
+                icon: LucideIcons.bookOpen,
                 label: 'Practice',
                 isActive: currentIndex == 1,
                 onTap: () => onTap(1),
               ),
               _NavItem(
-                icon: Icons.bar_chart_rounded,
-                label: 'Progress',
+                icon: LucideIcons.clipboardCheck,
+                label: 'Tests',
                 isActive: currentIndex == 2,
                 onTap: () => onTap(2),
               ),
               _NavItem(
-                icon: Icons.person_outline_rounded,
+                icon: LucideIcons.user,
                 label: 'Profile',
                 isActive: currentIndex == 3,
                 onTap: () => onTap(3),
@@ -87,7 +88,7 @@ class _NavItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isActive
-              ? AppColors.primary.withValues(alpha: 0.1)
+              ? AppColors.primary.withValues(alpha: 0.08)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
@@ -96,7 +97,7 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 24,
+              size: 22,
               color: isActive ? AppColors.primary : AppColors.textLight,
             ),
             const SizedBox(height: 4),

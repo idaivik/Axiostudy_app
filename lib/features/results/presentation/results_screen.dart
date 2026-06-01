@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/gradient_background.dart';
@@ -16,12 +17,13 @@ class ResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // TODO: Replace with real attempt data from Supabase when test submission flow is complete
     final attempt = MockData.sampleAttempt;
 
     return GradientBackground(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(LucideIcons.x),
           onPressed: () => context.go('/'),
         ),
         title: const Text('Test Results'),
@@ -96,8 +98,8 @@ class ResultsScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => context.go('/subjects'),
-                icon: const Icon(Icons.rocket_launch_rounded),
+                onPressed: () => context.go('/practice'),
+                icon: const Icon(LucideIcons.target),
                 label: const Text('Practice Weak Areas'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,

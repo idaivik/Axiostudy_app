@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import '../../shared/models/enums.dart';
 
 /// Color-coded pill badge for topic strength.
+/// Uses positive framing: "Needs Practice" instead of "Needs Work".
 class SubjectBadge extends StatelessWidget {
   final TopicStrength strength;
   final String? customLabel;
@@ -24,7 +26,7 @@ class SubjectBadge extends StatelessWidget {
           Icon(_icon, size: 12, color: _fgColor),
           const SizedBox(width: 4),
           Text(
-            customLabel ?? strength.label,
+            customLabel ?? _label,
             style: AppTypography.labelSmall.copyWith(
               color: _fgColor,
               fontWeight: FontWeight.w600,
@@ -35,21 +37,28 @@ class SubjectBadge extends StatelessWidget {
     );
   }
 
+  /// Positive framing labels
+  String get _label => switch (strength) {
+    TopicStrength.strong => 'Mastered',
+    TopicStrength.moderate => 'In Progress',
+    TopicStrength.weak => 'Needs Practice',
+  };
+
   Color get _bgColor => switch (strength) {
     TopicStrength.strong => AppColors.successLight,
-    TopicStrength.weak => AppColors.warningLight,
-    TopicStrength.moderate => AppColors.surfaceDark,
+    TopicStrength.moderate => AppColors.warningLight,
+    TopicStrength.weak => AppColors.infoLight,         // Blue, not red
   };
 
   Color get _fgColor => switch (strength) {
     TopicStrength.strong => AppColors.success,
-    TopicStrength.weak => AppColors.warning,
-    TopicStrength.moderate => AppColors.textLight,
+    TopicStrength.moderate => AppColors.warning,
+    TopicStrength.weak => AppColors.info,               // Blue, not red
   };
 
   IconData get _icon => switch (strength) {
-    TopicStrength.strong => Icons.trending_up_rounded,
-    TopicStrength.weak => Icons.trending_down_rounded,
-    TopicStrength.moderate => Icons.trending_flat_rounded,
+    TopicStrength.strong => LucideIcons.trendingUp,
+    TopicStrength.moderate => LucideIcons.minus,
+    TopicStrength.weak => LucideIcons.target,           // "Practice target" not "trending down"
   };
 }

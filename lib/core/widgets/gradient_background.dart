@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
-/// A scaffold wrapper that applies the AxioStudy soft pink
+/// A scaffold wrapper that applies the AxioStudy cool slate
 /// gradient background. Use this instead of a plain Scaffold
 /// for all main screens.
 class GradientBackground extends StatelessWidget {

@@ -27,6 +27,38 @@ class Question {
     required this.difficulty,
     this.explanation,
   });
+
+  /// Create from Supabase `questions` row.
+  factory Question.fromJson(Map<String, dynamic> json) {
+    return Question(
+      id: json['id'] as String,
+      text: json['text'] as String,
+      type: json['type'] == 'mcq' ? QuestionType.mcq : QuestionType.numerical,
+      options: json['options'] != null
+          ? (json['options'] as List).map((e) => e.toString()).toList()
+          : null,
+      correctAnswer: json['correct_answer'] as String,
+      imageUrl: json['image_url'] as String?,
+      subjectId: json['subject_id'] as String,
+      chapterId: json['chapter_id'] as String,
+      topicId: json['topic_id'] as String,
+      difficulty: _parseDifficulty(json['difficulty'] as String),
+      explanation: json['explanation'] as String?,
+    );
+  }
+
+  static Difficulty _parseDifficulty(String d) {
+    switch (d) {
+      case 'easy':
+        return Difficulty.easy;
+      case 'medium':
+        return Difficulty.medium;
+      case 'hard':
+        return Difficulty.hard;
+      default:
+        return Difficulty.medium;
+    }
+  }
 }
 
 /// A test (diagnostic, practice, or mock).
@@ -48,6 +80,35 @@ class Test {
     required this.subjectIds,
     required this.questions,
   });
+
+  /// Create from Supabase `tests` row.
+  /// Questions must be joined or provided separately.
+  factory Test.fromJson(Map<String, dynamic> json, {List<Question>? questions}) {
+    return Test(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      type: _parseTestType(json['type'] as String),
+      duration: Duration(minutes: json['duration_minutes'] as int? ?? 60),
+      totalQuestions: json['total_questions'] as int? ?? 0,
+      subjectIds: json['subject_ids'] != null
+          ? (json['subject_ids'] as List).map((e) => e.toString()).toList()
+          : [],
+      questions: questions ?? [],
+    );
+  }
+
+  static TestType _parseTestType(String t) {
+    switch (t) {
+      case 'diagnostic':
+        return TestType.diagnostic;
+      case 'practice':
+        return TestType.practice;
+      case 'mock':
+        return TestType.mock;
+      default:
+        return TestType.practice;
+    }
+  }
 }
 
 /// A user's answer to a single question.
@@ -63,6 +124,27 @@ class UserAnswer {
     this.timeTaken = Duration.zero,
     this.markedForReview = false,
   });
+
+  /// Create from Supabase `user_answers` row.
+  factory UserAnswer.fromJson(Map<String, dynamic> json) {
+    return UserAnswer(
+      questionId: json['question_id'] as String,
+      selectedAnswer: json['selected_answer'] as String?,
+      timeTaken: Duration(seconds: json['time_taken_seconds'] as int? ?? 0),
+      markedForReview: json['marked_for_review'] as bool? ?? false,
+    );
+  }
+
+  /// Convert to JSON for Supabase insert.
+  Map<String, dynamic> toJson(String attemptId) {
+    return {
+      'attempt_id': attemptId,
+      'question_id': questionId,
+      'selected_answer': selectedAnswer,
+      'time_taken_seconds': timeTaken.inSeconds,
+      'marked_for_review': markedForReview,
+    };
+  }
 
   UserAnswer copyWith({
     String? questionId,
@@ -104,6 +186,62 @@ class TestAttempt {
     this.totalMarks,
     this.status = TestAttemptStatus.inProgress,
   });
+
+  /// Create from Supabase `test_attempts` row.
+  /// Answers must be loaded separately and merged.
+  factory TestAttempt.fromJson(Map<String, dynamic> json, {Map<String, UserAnswer>? answers}) {
+    return TestAttempt(
+      id: json['id'] as String,
+      userId: json['user_id'] as String,
+      testId: json['test_id'] as String,
+      startTime: DateTime.parse(json['start_time'] as String),
+      endTime: json['end_time'] != null
+          ? DateTime.parse(json['end_time'] as String)
+          : null,
+      score: json['score'] as int?,
+      totalMarks: json['total_marks'] as int?,
+      status: _parseStatus(json['status'] as String?),
+      answers: answers ?? {},
+    );
+  }
+
+  /// Convert to JSON for Supabase insert.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'test_id': testId,
+      'start_time': startTime.toIso8601String(),
+      'end_time': endTime?.toIso8601String(),
+      'score': score,
+      'total_marks': totalMarks,
+      'status': _statusToString(status),
+    };
+  }
+
+  static TestAttemptStatus _parseStatus(String? s) {
+    switch (s) {
+      case 'in_progress':
+        return TestAttemptStatus.inProgress;
+      case 'submitted':
+        return TestAttemptStatus.submitted;
+      case 'analyzed':
+        return TestAttemptStatus.analyzed;
+      default:
+        return TestAttemptStatus.inProgress;
+    }
+  }
+
+  static String _statusToString(TestAttemptStatus status) {
+    switch (status) {
+      case TestAttemptStatus.inProgress:
+        return 'in_progress';
+      case TestAttemptStatus.submitted:
+        return 'submitted';
+      case TestAttemptStatus.analyzed:
+        return 'analyzed';
+    }
+  }
 
   TestAttempt copyWith({
     String? id,

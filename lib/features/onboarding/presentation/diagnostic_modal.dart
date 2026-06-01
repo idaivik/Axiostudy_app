@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 
@@ -56,20 +57,20 @@ class _DiagnosticModalContent extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Icon(
-              Icons.psychology_rounded,
+              LucideIcons.brain,
               size: 36,
               color: Colors.white,
             ),
           ),
           const SizedBox(height: 20),
           Text(
-            'Welcome to AxioStudy! 🎉',
+            'Welcome to AxioStudy',
             style: AppTypography.heading2,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 10),
           Text(
-            'Take a quick diagnostic test so we can personalize your learning path and identify areas to improve.',
+            'Take a quick diagnostic test so we can personalize your study plan and show you where to focus.',
             style: AppTypography.bodyMedium,
             textAlign: TextAlign.center,
           ),
@@ -82,7 +83,7 @@ class _DiagnosticModalContent extends StatelessWidget {
                 Navigator.pop(context);
                 context.push('/test-selection');
               },
-              icon: const Icon(Icons.edit_note_rounded),
+              icon: const Icon(LucideIcons.clipboardCheck),
               label: const Text('Take Diagnostic Test'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -101,7 +102,7 @@ class _DiagnosticModalContent extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.explore_outlined),
+              icon: const Icon(LucideIcons.compass),
               label: const Text('Skip & Explore'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primary,

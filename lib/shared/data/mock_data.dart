@@ -199,8 +199,8 @@ class MockData {
 
   // ─── Weak/Strong Areas ───
   static final List<Map<String, dynamic>> areasToImprove = [
-    {'subject': 'Physics', 'icon': '⚡', 'weakTopic': 'Rotational Motion', 'strongTopic': 'Mechanics', 'score': 0.65, 'color': SubjectType.physics},
-    {'subject': 'Chemistry', 'icon': '🧪', 'weakTopic': 'Physical Chemistry', 'strongTopic': 'Organic Chemistry', 'score': 0.58, 'color': SubjectType.chemistry},
-    {'subject': 'Mathematics', 'icon': '📐', 'weakTopic': 'Probability', 'strongTopic': 'Calculus', 'score': 0.72, 'color': SubjectType.mathematics},
+    {'subject': 'Physics', 'weakTopic': 'Rotational Motion', 'strongTopic': 'Mechanics', 'score': 0.65, 'color': SubjectType.physics},
+    {'subject': 'Chemistry', 'weakTopic': 'Physical Chemistry', 'strongTopic': 'Organic Chemistry', 'score': 0.58, 'color': SubjectType.chemistry},
+    {'subject': 'Mathematics', 'weakTopic': 'Probability', 'strongTopic': 'Calculus', 'score': 0.72, 'color': SubjectType.mathematics},
   ];
 }

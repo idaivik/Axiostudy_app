@@ -1,28 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/progress_bar.dart';
 import '../../../core/widgets/subject_badge.dart';
-import '../../../shared/data/mock_data.dart';
+import '../data/subjects_providers.dart';
 import '../../../shared/models/enums.dart';
 
-class SubjectsScreen extends StatelessWidget {
+class SubjectsScreen extends ConsumerWidget {
   const SubjectsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final subjectsAsync = ref.watch(subjectsProvider);
     return SafeArea(
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Subjects', style: AppTypography.heading1),
+                  Text('Practice', style: AppTypography.heading1),
                   const SizedBox(height: 4),
                   Text('Choose a subject to practice', style: AppTypography.bodyMedium),
                 ],
@@ -31,28 +34,42 @@ class SubjectsScreen extends StatelessWidget {
           ),
           SliverPadding(
             padding: const EdgeInsets.all(16),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final subject = MockData.subjects[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _SubjectCard(
-                      name: subject.name,
-                      icon: subject.icon,
-                      completion: subject.completionPercentage,
-                      totalQuestions: subject.totalQuestions,
-                      chapterCount: subject.chapters.length,
-                      gradient: _gradientFor(subject.type),
-                      weakChapter: subject.chapters
-                          .where((c) => c.strength == TopicStrength.weak)
-                          .map((c) => c.name)
-                          .firstOrNull,
-                      onTap: () => context.push('/subjects/${subject.id}'),
-                    ),
-                  );
-                },
-                childCount: MockData.subjects.length,
+            sliver: subjectsAsync.when(
+              loading: () => const SliverToBoxAdapter(
+                child: Center(child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: CircularProgressIndicator(),
+                )),
+              ),
+              error: (err, _) => SliverToBoxAdapter(
+                child: Center(child: Padding(
+                  padding: const EdgeInsets.all(40),
+                  child: Text('Failed to load subjects', style: AppTypography.bodyMedium),
+                )),
+              ),
+              data: (subjects) => SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final subject = subjects[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: _SubjectCard(
+                        name: subject.name,
+                        iconData: subject.iconData,
+                        completion: subject.completionPercentage,
+                        totalQuestions: subject.totalQuestions,
+                        chapterCount: subject.chapters.length,
+                        gradient: _gradientFor(subject.type),
+                        weakChapter: subject.chapters
+                            .where((c) => c.strength == TopicStrength.weak)
+                            .map((c) => c.name)
+                            .firstOrNull,
+                        onTap: () => context.push('/subjects/${subject.id}'),
+                      ),
+                    );
+                  },
+                  childCount: subjects.length,
+                ),
               ),
             ),
           ),
@@ -66,44 +83,54 @@ class SubjectsScreen extends StatelessWidget {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'AI-Recommended Practice',
-                            style: AppTypography.heading3.copyWith(color: Colors.white),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Based on your weak areas',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: Colors.white.withValues(alpha: 0.8),
+              child: GestureDetector(
+                onTap: () => context.push('/test-selection'),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'AI-Recommended Practice',
+                              style: AppTypography.heading3.copyWith(color: Colors.white),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+                            Text(
+                              'Based on your areas that need practice',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          LucideIcons.sparkles,
+                          color: Colors.white,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.auto_awesome_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -123,7 +150,7 @@ class SubjectsScreen extends StatelessWidget {
 
 class _SubjectCard extends StatelessWidget {
   final String name;
-  final String icon;
+  final IconData iconData;
   final double completion;
   final int totalQuestions;
   final int chapterCount;
@@ -133,7 +160,7 @@ class _SubjectCard extends StatelessWidget {
 
   const _SubjectCard({
     required this.name,
-    required this.icon,
+    required this.iconData,
     required this.completion,
     required this.totalQuestions,
     required this.chapterCount,
@@ -171,7 +198,7 @@ class _SubjectCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Center(
-                    child: Text(icon, style: const TextStyle(fontSize: 26)),
+                    child: Icon(iconData, size: 26, color: Colors.white),
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -181,7 +208,7 @@ class _SubjectCard extends StatelessWidget {
                     children: [
                       Text(name, style: AppTypography.heading3),
                       Text(
-                        '$chapterCount chapters • $totalQuestions questions',
+                        '$chapterCount chapters  |  $totalQuestions questions',
                         style: AppTypography.caption,
                       ),
                     ],

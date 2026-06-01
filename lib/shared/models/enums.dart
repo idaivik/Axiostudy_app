@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+
 /// Question difficulty levels.
 enum Difficulty {
   easy,
@@ -90,7 +93,7 @@ enum SubscriptionTier {
   }
 }
 
-/// Three main subjects for JEE.
+/// Three main subjects for JEE/NEET.
 enum SubjectType {
   physics,
   chemistry,
@@ -107,14 +110,29 @@ enum SubjectType {
     }
   }
 
+  /// Professional icon for the subject (Lucide icons).
+  IconData get iconData {
+    switch (this) {
+      case SubjectType.physics:
+        return LucideIcons.atom;
+      case SubjectType.chemistry:
+        return LucideIcons.flaskConical;
+      case SubjectType.mathematics:
+        return LucideIcons.sigma;
+    }
+  }
+
+  /// Legacy string getter — kept for backward compatibility.
+  /// New code should use [iconData] instead.
+  @Deprecated('Use iconData instead')
   String get icon {
     switch (this) {
       case SubjectType.physics:
-        return '⚡';
+        return 'atom';
       case SubjectType.chemistry:
-        return '🧪';
+        return 'flask';
       case SubjectType.mathematics:
-        return '📐';
+        return 'sigma';
     }
   }
 }
@@ -128,11 +146,11 @@ enum TopicStrength {
   String get label {
     switch (this) {
       case TopicStrength.weak:
-        return 'Needs Work';
+        return 'Needs Practice';
       case TopicStrength.moderate:
-        return 'Moderate';
+        return 'In Progress';
       case TopicStrength.strong:
-        return 'Strong';
+        return 'Mastered';
     }
   }
 }

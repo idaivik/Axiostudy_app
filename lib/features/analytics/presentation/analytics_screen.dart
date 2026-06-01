@@ -1,34 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/axio_card.dart';
 import '../../../core/widgets/progress_circle.dart';
+import '../../../core/widgets/gradient_background.dart';
+import '../../../shared/models/enums.dart';
 
+/// Detailed analytics screen — accessible from Profile > Detailed Analytics.
+/// Not a tab anymore, it's a deep-linked page.
 class AnalyticsScreen extends StatelessWidget {
   const AnalyticsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
+    return GradientBackground(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(LucideIcons.arrowLeft),
+          onPressed: () => context.pop(),
+        ),
+        title: const Text('Detailed Analytics'),
+      ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         physics: const BouncingScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Progress', style: AppTypography.heading1),
+            Text('Your Progress', style: AppTypography.heading1),
             const SizedBox(height: 4),
             Text('Track your improvement over time', style: AppTypography.bodyMedium),
             const SizedBox(height: 20),
             // Summary row
             Row(
               children: [
-                Expanded(child: _SummaryCard(label: 'Tests', value: '24', icon: Icons.assignment_rounded, color: AppColors.primary)),
+                Expanded(child: _SummaryCard(label: 'Tests', value: '24', icon: LucideIcons.fileCheck, color: AppColors.primary)),
                 const SizedBox(width: 12),
-                Expanded(child: _SummaryCard(label: 'Avg Score', value: '72%', icon: Icons.star_rounded, color: AppColors.warning)),
+                Expanded(child: _SummaryCard(label: 'Avg Score', value: '72%', icon: LucideIcons.star, color: AppColors.secondary)),
                 const SizedBox(width: 12),
-                Expanded(child: _SummaryCard(label: 'Streak', value: '7 🔥', icon: Icons.local_fire_department_rounded, color: AppColors.error)),
+                Expanded(child: _SummaryCard(label: 'Streak', value: '7', icon: LucideIcons.flame, color: AppColors.mathematics)),
               ],
             ),
             const SizedBox(height: 16),
@@ -105,7 +118,7 @@ class AnalyticsScreen extends StatelessWidget {
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              AppColors.primary.withValues(alpha: 0.2),
+                              AppColors.primary.withValues(alpha: 0.15),
                               AppColors.primary.withValues(alpha: 0.0),
                             ],
                           ),
@@ -124,9 +137,24 @@ class AnalyticsScreen extends StatelessWidget {
               expandedContent: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _SubjectCircle(label: 'Physics', progress: 0.65, emoji: '⚡', color: AppColors.physics),
-                  _SubjectCircle(label: 'Chemistry', progress: 0.58, emoji: '🧪', color: AppColors.chemistry),
-                  _SubjectCircle(label: 'Maths', progress: 0.72, emoji: '📐', color: AppColors.mathematics),
+                  _SubjectCircle(
+                    label: 'Physics',
+                    progress: 0.65,
+                    iconData: SubjectType.physics.iconData,
+                    color: AppColors.physics,
+                  ),
+                  _SubjectCircle(
+                    label: 'Chemistry',
+                    progress: 0.58,
+                    iconData: SubjectType.chemistry.iconData,
+                    color: AppColors.chemistry,
+                  ),
+                  _SubjectCircle(
+                    label: 'Maths',
+                    progress: 0.72,
+                    iconData: SubjectType.mathematics.iconData,
+                    color: AppColors.mathematics,
+                  ),
                 ],
               ),
             ),
@@ -168,7 +196,7 @@ class _SummaryCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
+          Icon(icon, color: color, size: 22),
           const SizedBox(height: 8),
           Text(value, style: AppTypography.heading3),
           Text(label, style: AppTypography.caption),
@@ -181,13 +209,13 @@ class _SummaryCard extends StatelessWidget {
 class _SubjectCircle extends StatelessWidget {
   final String label;
   final double progress;
-  final String emoji;
+  final IconData iconData;
   final Color color;
 
   const _SubjectCircle({
     required this.label,
     required this.progress,
-    required this.emoji,
+    required this.iconData,
     required this.color,
   });
 
@@ -200,11 +228,14 @@ class _SubjectCircle extends StatelessWidget {
           size: 80,
           strokeWidth: 7,
           progressColor: color,
-          centerWidget: Text(emoji, style: const TextStyle(fontSize: 24)),
+          centerWidget: Icon(iconData, size: 24, color: color),
         ),
         const SizedBox(height: 8),
         Text(label, style: AppTypography.bodyMedium),
-        Text('${(progress * 100).round()}%', style: AppTypography.heading3.copyWith(color: color)),
+        Text(
+          '${(progress * 100).round()}%',
+          style: AppTypography.heading3.copyWith(color: color),
+        ),
       ],
     );
   }

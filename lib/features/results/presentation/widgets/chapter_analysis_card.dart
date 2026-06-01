@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/axio_card.dart';
@@ -12,7 +13,7 @@ class ChapterAnalysisCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AxioCard(
       title: 'Chapter Analysis',
-      leading: Icon(Icons.analytics_rounded, color: AppColors.warning, size: 22),
+      leading: Icon(LucideIcons.lineChart, color: AppColors.warning, size: 22),
       collapsedContent: Text('3 weak chapters identified', style: AppTypography.bodyMedium),
       expandedContent: Column(
         children: const [

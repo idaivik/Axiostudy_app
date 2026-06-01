@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/gradient_background.dart';
+import '../../../shared/models/enums.dart';
 
 /// Test type selection screen after user chooses to take diagnostic.
 class TestSelectionScreen extends StatelessWidget {
@@ -13,7 +15,7 @@ class TestSelectionScreen extends StatelessWidget {
     return GradientBackground(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: const Icon(LucideIcons.arrowLeft),
           onPressed: () => context.pop(),
         ),
         title: const Text('Choose Your Test'),
@@ -34,10 +36,10 @@ class TestSelectionScreen extends StatelessWidget {
               // Combined test
               _TestOptionCard(
                 title: 'Combined JEE Test',
-                description: 'Physics + Chemistry + Maths\n90 questions • 3 hours',
-                icon: Icons.auto_awesome_rounded,
+                description: 'Physics + Chemistry + Maths\n90 questions  •  3 hours',
+                icon: LucideIcons.sparkles,
                 gradient: AppColors.primaryGradient,
-                tags: const ['Full Syllabus', 'Recommended'],
+                isRecommended: true,
                 onTap: () => context.push('/test/test_diag_001'),
               ),
               const SizedBox(height: 16),
@@ -46,28 +48,25 @@ class TestSelectionScreen extends StatelessWidget {
               // Individual tests
               _TestOptionCard(
                 title: 'Physics',
-                description: '30 questions • 1 hour',
-                icon: Icons.flash_on_rounded,
+                description: '30 questions  •  1 hour',
+                icon: SubjectType.physics.iconData,
                 gradient: AppColors.physicsGradient,
-                tags: const ['Individual'],
                 onTap: () => context.push('/test/test_diag_001'),
               ),
               const SizedBox(height: 10),
               _TestOptionCard(
                 title: 'Chemistry',
-                description: '30 questions • 1 hour',
-                icon: Icons.science_rounded,
+                description: '30 questions  •  1 hour',
+                icon: SubjectType.chemistry.iconData,
                 gradient: AppColors.chemistryGradient,
-                tags: const ['Individual'],
                 onTap: () => context.push('/test/test_diag_001'),
               ),
               const SizedBox(height: 10),
               _TestOptionCard(
                 title: 'Mathematics',
-                description: '30 questions • 1 hour',
-                icon: Icons.calculate_rounded,
+                description: '30 questions  •  1 hour',
+                icon: SubjectType.mathematics.iconData,
                 gradient: AppColors.mathematicsGradient,
-                tags: const ['Individual'],
                 onTap: () => context.push('/test/test_diag_001'),
               ),
             ],
@@ -83,7 +82,7 @@ class _TestOptionCard extends StatelessWidget {
   final String description;
   final IconData icon;
   final LinearGradient gradient;
-  final List<String> tags;
+  final bool isRecommended;
   final VoidCallback? onTap;
 
   const _TestOptionCard({
@@ -91,7 +90,7 @@ class _TestOptionCard extends StatelessWidget {
     required this.description,
     required this.icon,
     required this.gradient,
-    required this.tags,
+    this.isRecommended = false,
     this.onTap,
   });
 
@@ -134,22 +133,30 @@ class _TestOptionCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (tags.contains('Recommended'))
+            if (isRecommended)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.primarySurface,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text(
-                  '⭐ Best',
-                  style: AppTypography.labelSmall.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.star, size: 12, color: AppColors.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Best',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
+            const SizedBox(width: 8),
+            Icon(LucideIcons.chevronRight, color: AppColors.textLight, size: 20),
           ],
         ),
       ),

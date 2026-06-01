@@ -5,6 +5,7 @@ import '../../features/auth/data/auth_providers.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/test/presentation/test_screen.dart';
+import '../../features/test/presentation/tests_list_screen.dart';
 import '../../features/results/presentation/results_screen.dart';
 import '../../features/subjects/presentation/subjects_screen.dart';
 import '../../features/subjects/presentation/chapter_detail_screen.dart';
@@ -16,7 +17,7 @@ import '../widgets/bottom_nav_bar.dart';
 import '../widgets/gradient_background.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final isLoggedIn = ref.watch(authStateProvider);
+  final isLoggedIn = ref.watch(isLoggedInProvider);
 
   return GoRouter(
     initialLocation: isLoggedIn ? '/' : '/login',
@@ -42,15 +43,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: '/subjects',
+            path: '/practice',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: SubjectsScreen(),
             ),
           ),
           GoRoute(
-            path: '/analytics',
+            path: '/tests',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: AnalyticsScreen(),
+              child: TestsListScreen(),
             ),
           ),
           GoRoute(
@@ -80,6 +81,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/analytics',
+        builder: (context, state) => const AnalyticsScreen(),
+      ),
+      GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
       ),
@@ -103,7 +108,7 @@ class _ShellScaffold extends StatefulWidget {
 class _ShellScaffoldState extends State<_ShellScaffold> {
   int _currentIndex = 0;
 
-  static const _routes = ['/', '/subjects', '/analytics', '/profile'];
+  static const _routes = ['/', '/practice', '/tests', '/profile'];
 
   @override
   Widget build(BuildContext context) {
