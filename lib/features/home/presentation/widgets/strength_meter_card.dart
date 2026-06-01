@@ -136,12 +136,13 @@ class _SubjectBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pct = subject.completionPercentage as double;
-    final strongChapter = (subject.chapters as List).isNotEmpty
-        ? (subject.chapters as List).reduce((a, b) =>
+    final chapters = List<dynamic>.from(subject.chapters as List);
+    final strongChapter = chapters.isNotEmpty
+        ? chapters.reduce((a, b) =>
             (a.completionPercentage as double) >= (b.completionPercentage as double) ? a : b).name as String
         : '—';
-    final weakChapter = (subject.chapters as List).isNotEmpty
-        ? (subject.chapters as List).reduce((a, b) =>
+    final weakChapter = chapters.isNotEmpty
+        ? chapters.reduce((a, b) =>
             (a.completionPercentage as double) <= (b.completionPercentage as double) ? a : b).name as String
         : '—';
 
