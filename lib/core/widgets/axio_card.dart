@@ -93,19 +93,19 @@ class _AxioCardState extends State<AxioCard>
     return Container(
       margin: widget.margin ?? const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.divider, width: 1),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.06),
+            color: AppColors.slate900.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 4),
-            spreadRadius: 0,
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         child: IntrinsicHeight(
           child: Row(
             children: [

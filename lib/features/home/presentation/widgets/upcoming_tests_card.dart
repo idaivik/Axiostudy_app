@@ -4,8 +4,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 
-/// Compact card showing only the next upcoming test.
-/// Tapping navigates to the test.
 class UpcomingTestCard extends StatelessWidget {
   const UpcomingTestCard({super.key});
 
@@ -17,29 +15,25 @@ class UpcomingTestCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(20),
+          color: AppColors.darkCard,
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.06),
-              blurRadius: 20,
-              offset: const Offset(0, 6),
+              color: AppColors.slate900.withValues(alpha: 0.2),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: AppColors.secondary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.greenLight.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(
-                LucideIcons.clipboardCheck,
-                color: AppColors.secondary,
-                size: 20,
-              ),
+              child: Icon(LucideIcons.clipboardCheck, color: AppColors.greenLight, size: 20),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -50,9 +44,10 @@ class UpcomingTestCard extends StatelessWidget {
                     'JEE Full Mock Test #5',
                     style: AppTypography.bodyLarge.copyWith(
                       fontWeight: FontWeight.w600,
+                      color: AppColors.white,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Icon(LucideIcons.clock, size: 12, color: AppColors.textLight),
@@ -61,6 +56,7 @@ class UpcomingTestCard extends StatelessWidget {
                         'In 2 days',
                         style: AppTypography.caption.copyWith(
                           fontWeight: FontWeight.w500,
+                          color: AppColors.textLight,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -68,7 +64,7 @@ class UpcomingTestCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         '90 questions',
-                        style: AppTypography.caption,
+                        style: AppTypography.caption.copyWith(color: AppColors.textLight),
                       ),
                     ],
                   ),
@@ -76,15 +72,19 @@ class UpcomingTestCard extends StatelessWidget {
               ),
             ),
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
               decoration: BoxDecoration(
-                color: AppColors.primarySurface,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                LucideIcons.chevronRight,
                 color: AppColors.primary,
-                size: 18,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Text(
+                'Start',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.white,
+                  letterSpacing: -0.2,
+                ),
               ),
             ),
           ],

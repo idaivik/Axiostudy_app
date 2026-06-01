@@ -156,20 +156,3 @@ class _CircleProgressPainter extends CustomPainter {
       oldDelegate.progress != progress;
 }
 
-/// Flutter's AnimatedBuilder equivalent using standard pattern.
-class AnimatedBuilder extends AnimatedWidget {
-  final Widget Function(BuildContext, Widget?) builder;
-  final Widget? child;
-
-  const AnimatedBuilder({
-    super.key,
-    required Animation<double> animation,
-    required this.builder,
-    this.child,
-  }) : super(listenable: animation);
-
-  @override
-  Widget build(BuildContext context) {
-    return builder(context, child);
-  }
-}

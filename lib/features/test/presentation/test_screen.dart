@@ -158,7 +158,7 @@ class _TestScreenState extends ConsumerState<TestScreen> {
   Widget build(BuildContext context) {
     if (_isLoading || _test == null) {
       return Scaffold(
-        backgroundColor: AppColors.backgroundGradientEnd,
+        backgroundColor: AppColors.background,
         appBar: AppBar(backgroundColor: AppColors.cardBackground),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -168,7 +168,7 @@ class _TestScreenState extends ConsumerState<TestScreen> {
     final currentAnswer = _answers[question.id];
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundGradientEnd,
+      backgroundColor: AppColors.background,
       // Top bar
       appBar: AppBar(
         backgroundColor: AppColors.cardBackground,

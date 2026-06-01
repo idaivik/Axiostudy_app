@@ -1,65 +1,75 @@
 import 'package:flutter/material.dart';
 
-/// AxioStudy brand color palette.
-///
-/// Design philosophy: Smart Coach — premium, warm, confident.
-/// Deep rose conveys energy and warmth without being childish.
-/// A sophisticated crimson-rose that feels premium and serious.
 class AppColors {
   AppColors._();
 
-  // ─── Background Gradient ───
-  static const Color backgroundGradientStart = Color(0xFFFFF5F7);
-  static const Color backgroundGradientEnd = Color(0xFFFFF0F3);
+  // ─── Base Palette ───
+  static const Color white = Color(0xFFFFFFFF);
+  static const Color slate900 = Color(0xFF0F172A);
 
-  // ─── Primary (Deep Rose — premium, not hot pink) ───
-  static const Color primary = Color(0xFFE11D48);
-  static const Color primaryLight = Color(0xFFFB7185);
-  static const Color primaryDark = Color(0xFFBE123C);
-  static const Color primarySurface = Color(0xFFFFF1F2);
+  // ─── Green Scale ───
+  static const Color greenDarkAccent = Color(0xFF004225);
+  static const Color greenStrong = Color(0xFF166534);
+  static const Color primary = Color(0xFF16A34A);       // Primary action
+  static const Color greenLight = Color(0xFF4ADE80);    // Light accent
+  static const Color greenSurface = Color(0xFFDCFCE7);  // Surface tint
+  static const Color greenWash = Color(0xFFF0FDF4);     // Background wash
 
-  // ─── Secondary (Warm Amber) ───
-  static const Color secondary = Color(0xFFF59E0B);
-  static const Color secondaryLight = Color(0xFFFDE68A);
-
-  // ─── Semantic Colors (Positive framing) ───
-  static const Color success = Color(0xFF10B981);       // Mastered
-  static const Color successLight = Color(0xFFD1FAE5);
-  static const Color warning = Color(0xFFF59E0B);       // In Progress
-  static const Color warningLight = Color(0xFFFEF3C7);
-  static const Color info = Color(0xFF60A5FA);           // Needs Practice (not red!)
-  static const Color infoLight = Color(0xFFDBEAFE);
-  static const Color error = Color(0xFFEF4444);          // Only for destructive actions
-  static const Color errorLight = Color(0xFFFEE2E2);
+  // ─── Semantic ───
+  static const Color wrong = Color(0xFFDC2626);
+  static const Color weak = Color(0xFFEA580C);
+  static const Color correct = Color(0xFF16A34A);
+  static const Color inactive = Color(0xFFF1F5F9);
 
   // ─── Text ───
-  static const Color textDark = Color(0xFF1C1917);       // Warm dark
-  static const Color textMedium = Color(0xFF57534E);     // Stone 600
-  static const Color textLight = Color(0xFFA8A29E);      // Stone 400
+  static const Color textDark = Color(0xFF0F172A);      // Slate 900
+  static const Color textMedium = Color(0xFF475569);    // Slate 600
+  static const Color textLight = Color(0xFF94A3B8);     // Slate 400
   static const Color textOnPrimary = Color(0xFFFFFFFF);
+  static const Color textOnDark = Color(0xFFFFFFFF);
 
   // ─── Surfaces ───
+  static const Color background = Color(0xFFFFFFFF);
+  static const Color backgroundWash = Color(0xFFF0FDF4);
   static const Color cardBackground = Color(0xFFFFFFFF);
-  static const Color surfaceLight = Color(0xFFFAFAF9);   // Stone 50
-  static const Color surfaceDark = Color(0xFFF5F5F4);    // Stone 100
-  static const Color divider = Color(0xFFE7E5E4);        // Stone 200
+  static const Color surfaceLight = Color(0xFFF8FAFC);  // Slate 50
+  static const Color surfaceDark = Color(0xFFF1F5F9);   // Slate 100
+  static const Color divider = Color(0xFFE2E8F0);       // Slate 200
+  static const Color darkCard = Color(0xFF0F172A);      // Slate 900 card
 
-  // ─── Subject-Specific ───
-  static const Color physics = Color(0xFF6366F1);        // Indigo
-  static const Color chemistry = Color(0xFF14B8A6);      // Teal
-  static const Color mathematics = Color(0xFFF59E0B);    // Amber
+  // ─── Subject Colors ───
+  static const Color physics = Color(0xFF6366F1);       // Indigo
+  static const Color chemistry = Color(0xFF0EA5E9);     // Sky
+  static const Color mathematics = Color(0xFFF59E0B);   // Amber
+
+  // ─── Primary aliases ───
+  static const Color primaryLight = greenLight;
+  static const Color primarySurface = greenSurface;
+  static const Color primaryDark = greenDarkAccent;
+  static const Color success = primary;
+  static const Color successLight = greenSurface;
+  static const Color warning = weak;
+  static const Color warningLight = Color(0xFFFFF7ED);
+  static const Color error = wrong;
+  static const Color errorLight = Color(0xFFFEF2F2);
 
   // ─── Gradients ───
   static const LinearGradient backgroundGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [backgroundGradientStart, backgroundGradientEnd],
+    colors: [white, backgroundWash],
   );
 
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFFB7185), Color(0xFFE11D48)],
+    colors: [Color(0xFF16A34A), Color(0xFF004225)],
+  );
+
+  static const LinearGradient heroGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF166534), Color(0xFF0F172A)],
   );
 
   static const LinearGradient physicsGradient = LinearGradient(
@@ -71,7 +81,7 @@ class AppColors {
   static const LinearGradient chemistryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF2DD4BF), Color(0xFF14B8A6)],
+    colors: [Color(0xFF38BDF8), Color(0xFF0EA5E9)],
   );
 
   static const LinearGradient mathematicsGradient = LinearGradient(

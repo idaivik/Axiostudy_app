@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 
 enum AxioButtonStyle { primary, secondary, text }
 
-/// Button variants with loading state and subtle press animation.
-class AxioButton extends StatelessWidget {
+class AxioButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final AxioButtonStyle style;
@@ -24,15 +24,42 @@ class AxioButton extends StatelessWidget {
   });
 
   @override
+  State<AxioButton> createState() => _AxioButtonState();
+}
+
+class _AxioButtonState extends State<AxioButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _scaleController;
+  late Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _scaleAnim = Tween<double>(begin: 1.0, end: 0.96).animate(
+      CurvedAnimation(parent: _scaleController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _scaleController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final child = isLoading
+    final child = widget.isLoading
         ? SizedBox(
             height: 20,
             width: 20,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              color: style == AxioButtonStyle.primary
-                  ? AppColors.textOnPrimary
+              color: widget.style == AxioButtonStyle.primary
+                  ? AppColors.white
                   : AppColors.primary,
             ),
           )
@@ -40,53 +67,57 @@ class AxioButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (icon != null) ...[
-                Icon(icon, size: 20),
+              if (widget.icon != null) ...[
+                Icon(widget.icon, size: 18),
                 const SizedBox(width: 8),
               ],
-              Text(label),
+              Text(widget.label, style: AppTypography.button),
             ],
           );
 
-    Widget button;
-    switch (style) {
-      case AxioButtonStyle.primary:
-        button = ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.textOnPrimary,
-            disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 0,
-            textStyle: AppTypography.button,
-          ),
-          child: child,
-        );
-      case AxioButtonStyle.secondary:
-        button = OutlinedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.primary,
-            side: const BorderSide(color: AppColors.primary, width: 1.5),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            textStyle: AppTypography.button.copyWith(color: AppColors.primary),
-          ),
-          child: child,
-        );
-      case AxioButtonStyle.text:
-        button = TextButton(
-          onPressed: isLoading ? null : onPressed,
-          child: child,
-        );
-    }
-
-    return SizedBox(width: width, child: button);
+    return GestureDetector(
+      onTapDown: (_) {
+        HapticFeedback.lightImpact();
+        _scaleController.forward();
+      },
+      onTapUp: (_) => _scaleController.reverse(),
+      onTapCancel: () => _scaleController.reverse(),
+      child: ScaleTransition(
+        scale: _scaleAnim,
+        child: SizedBox(
+          width: widget.width,
+          child: switch (widget.style) {
+            AxioButtonStyle.primary => ElevatedButton(
+                onPressed: widget.isLoading ? null : widget.onPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                  disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                  textStyle: AppTypography.button,
+                ),
+                child: child,
+              ),
+            AxioButtonStyle.secondary => OutlinedButton(
+                onPressed: widget.isLoading ? null : widget.onPressed,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary, width: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  textStyle: AppTypography.button.copyWith(color: AppColors.primary),
+                ),
+                child: child,
+              ),
+            AxioButtonStyle.text => TextButton(
+                onPressed: widget.isLoading ? null : widget.onPressed,
+                child: child,
+              ),
+          },
+        ),
+      ),
+    );
   }
 }

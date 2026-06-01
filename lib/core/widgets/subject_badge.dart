@@ -47,13 +47,13 @@ class SubjectBadge extends StatelessWidget {
   Color get _bgColor => switch (strength) {
     TopicStrength.strong => AppColors.successLight,
     TopicStrength.moderate => AppColors.warningLight,
-    TopicStrength.weak => AppColors.infoLight,         // Blue, not red
+    TopicStrength.weak => AppColors.greenSurface,
   };
 
   Color get _fgColor => switch (strength) {
     TopicStrength.strong => AppColors.success,
     TopicStrength.moderate => AppColors.warning,
-    TopicStrength.weak => AppColors.info,               // Blue, not red
+    TopicStrength.weak => AppColors.primary,
   };
 
   IconData get _icon => switch (strength) {

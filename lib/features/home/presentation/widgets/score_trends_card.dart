@@ -68,13 +68,14 @@ class _ScoreTrendsCardState extends State<ScoreTrendsCard>
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(20),
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.divider, width: 1),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.06),
+              color: AppColors.slate900.withValues(alpha: 0.04),
               blurRadius: 20,
-              offset: const Offset(0, 6),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -88,13 +89,13 @@ class _ScoreTrendsCardState extends State<ScoreTrendsCard>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.successLight,
-                      borderRadius: BorderRadius.circular(10),
+                      color: AppColors.greenSurface,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       LucideIcons.trendingUp,
-                      color: AppColors.success,
-                      size: 18,
+                      color: AppColors.primary,
+                      size: 17,
                     ),
                   ),
                   const SizedBox(width: 12),

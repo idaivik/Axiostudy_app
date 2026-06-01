@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../features/auth/data/auth_providers.dart';
@@ -11,14 +12,6 @@ import 'widgets/strength_meter_card.dart';
 import 'widgets/score_trends_card.dart';
 import 'widgets/upcoming_tests_card.dart';
 
-/// Home screen — the "Smart Coach" dashboard.
-///
-/// Information hierarchy:
-/// 1. Greeting + Readiness score
-/// 2. Today's Plan (primary CTA)
-/// 3. Strength Meter (subject progress)
-/// 4. Recent Performance (score trends)
-/// 5. Next Test (single upcoming test)
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -26,18 +19,38 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with SingleTickerProviderStateMixin {
   bool _hasShownDiagnosticModal = false;
+  late AnimationController _headerController;
+  late Animation<double> _headerFade;
+  late Animation<Offset> _headerSlide;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkDiagnosticPrompt();
-    });
+    _headerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _headerFade = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _headerController, curve: Curves.easeOut),
+    );
+    _headerSlide = Tween<Offset>(begin: const Offset(0, -0.12), end: Offset.zero).animate(
+      CurvedAnimation(parent: _headerController, curve: Curves.easeOutCubic),
+    );
+    _headerController.forward();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkDiagnostic());
   }
 
-  void _checkDiagnosticPrompt() {
+  @override
+  void dispose() {
+    _headerController.dispose();
+    super.dispose();
+  }
+
+  void _checkDiagnostic() {
     final hasTaken = ref.read(hasTakenDiagnosticProvider);
     if (!hasTaken && !_hasShownDiagnosticModal) {
       _hasShownDiagnosticModal = true;
@@ -49,74 +62,144 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
     final user = userAsync.valueOrNull;
+    final firstName = user?.name.split(' ').first ?? 'Student';
 
     return SafeArea(
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // Header — clean, professional greeting
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hi, ${user?.name.split(' ').first ?? 'Student'}',
-                          style: AppTypography.heading1,
+            child: FadeTransition(
+              opacity: _headerFade,
+              child: SlideTransition(
+                position: _headerSlide,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _greeting(firstName),
+                              style: AppTypography.heading1,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              "Here's your AI study plan for today",
+                              style: AppTypography.bodyMedium,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Here\'s your study plan for today',
-                          style: AppTypography.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => context.go('/profile'),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        gradient: AppColors.primaryGradient,
-                        borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Center(
-                        child: Text(
-                          user?.name.substring(0, 1) ?? 'S',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () => context.go('/profile'),
+                        child: Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.heroGradient,
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.25),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              (user?.name.isNotEmpty == true)
+                                  ? user!.name[0].toUpperCase()
+                                  : 'S',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 19,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
 
-          // Dashboard cards — strict priority order
+          // AI insight strip
+          SliverToBoxAdapter(
+            child: FadeTransition(
+              opacity: _headerFade,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: _AIInsightStrip(),
+              ),
+            ),
+          ),
+
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                const SizedBox(height: 8),
                 const ReadinessBanner(),
                 const TodaysPlanCard(),
                 const StrengthMeterCard(),
                 const ScoreTrendsCard(),
                 const UpcomingTestCard(),
-                const SizedBox(height: 100),
+                const SizedBox(height: 110),
               ]),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  String _greeting(String name) {
+    final h = DateTime.now().hour;
+    final g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    return '$g, $name';
+  }
+}
+
+class _AIInsightStrip extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.greenWash,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.greenSurface, width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(LucideIcons.brain, size: 14, color: AppColors.primary),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'AI detected 2 weak topics from your last test — focus on those today',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.greenStrong,
+                height: 1.4,
+              ),
+            ),
+          ),
+          Icon(LucideIcons.chevronRight, size: 14, color: AppColors.primary),
         ],
       ),
     );

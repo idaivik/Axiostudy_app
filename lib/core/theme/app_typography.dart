@@ -2,16 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
-/// AxioStudy typography system using Inter font.
-///
-/// Hierarchy:
-/// - heading1 (28pt) → Screen titles
-/// - heading2 (22pt) → Section headers
-/// - heading3 (18pt) → Card titles
-/// - bodyLarge (16pt) → Primary content
-/// - bodyMedium (14pt) → Secondary content
-/// - caption (12pt)   → Labels, timestamps
-/// - button (16pt)    → Button text
 class AppTypography {
   AppTypography._();
 
@@ -22,25 +12,26 @@ class AppTypography {
         fontSize: 28,
         fontWeight: FontWeight.w700,
         color: AppColors.textDark,
-        height: 1.3,
-        letterSpacing: -0.5,
+        height: 1.2,
+        letterSpacing: -0.8,
       );
 
   static TextStyle get heading2 => TextStyle(
         fontFamily: _fontFamily,
         fontSize: 22,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         color: AppColors.textDark,
-        height: 1.3,
-        letterSpacing: -0.3,
+        height: 1.25,
+        letterSpacing: -0.5,
       );
 
   static TextStyle get heading3 => TextStyle(
         fontFamily: _fontFamily,
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: FontWeight.w600,
         color: AppColors.textDark,
-        height: 1.4,
+        height: 1.35,
+        letterSpacing: -0.3,
       );
 
   static TextStyle get bodyLarge => TextStyle(
@@ -73,31 +64,33 @@ class AppTypography {
         fontWeight: FontWeight.w600,
         color: AppColors.textOnPrimary,
         height: 1.2,
-        letterSpacing: 0.3,
+        letterSpacing: -0.1,
       );
 
   static TextStyle get labelSmall => TextStyle(
         fontFamily: _fontFamily,
         fontSize: 11,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
         color: AppColors.textLight,
         height: 1.3,
-        letterSpacing: 0.5,
+        letterSpacing: 0.4,
       );
 
   static TextStyle get numberLarge => TextStyle(
         fontFamily: _fontFamily,
-        fontSize: 36,
+        fontSize: 40,
         fontWeight: FontWeight.w800,
         color: AppColors.textDark,
-        height: 1.1,
+        height: 1.0,
+        letterSpacing: -1.5,
       );
 
   static TextStyle get numberMedium => TextStyle(
         fontFamily: _fontFamily,
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: FontWeight.w700,
         color: AppColors.textDark,
-        height: 1.2,
+        height: 1.1,
+        letterSpacing: -0.8,
       );
 }

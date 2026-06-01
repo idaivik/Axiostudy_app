@@ -12,7 +12,7 @@ class SubjectBreakdownCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AxioCard(
       title: 'Subject Breakdown',
-      leading: Icon(LucideIcons.pieChart, color: AppColors.secondary, size: 22),
+      leading: Icon(LucideIcons.pieChart, color: AppColors.primary, size: 22),
       expandedContent: Column(
         children: [
           _SubjectBar(name: 'Physics', score: 0.85, icon: LucideIcons.atom, color: AppColors.physics),
