@@ -1,6 +1,3 @@
-/// Supabase configuration constants.
-/// The anon key is designed to be public — actual security
-/// is enforced by Row Level Security (RLS) policies on the server.
 class SupabaseConfig {
   SupabaseConfig._();
 

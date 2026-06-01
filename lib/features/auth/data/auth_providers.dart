@@ -1,30 +1,49 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/supabase/supabase_providers.dart';
+import '../../../shared/models/enums.dart';
 import '../domain/user_model.dart';
 import 'auth_repository.dart';
 
-/// Provides the AuthRepository instance.
+/// Test profile used when guest mode is active.
+final _guestProfile = UserModel(
+  id: 'guest-001',
+  email: 'test@axiostudy.com',
+  name: 'Ujjwal Kalra',
+  grade: '12th',
+  subscriptionTier: SubscriptionTier.premium,
+  createdAt: DateTime(2025, 1, 1),
+  hasTakenDiagnostic: true,
+  testsCompleted: 12,
+  averageScore: 72.5,
+  currentStreak: 7,
+  topicsMastered: 34,
+);
+
+/// Guest mode toggle — true means skip Supabase auth entirely.
+final guestModeProvider = StateProvider<bool>((ref) => false);
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(ref.watch(supabaseClientProvider));
 });
 
-/// Reactive auth state — emits true/false based on Supabase session.
 final authStateProvider = StreamProvider<bool>((ref) {
   final client = ref.watch(supabaseClientProvider);
-
   return client.auth.onAuthStateChange.map((authState) {
     return authState.session != null;
   });
 });
 
-/// Whether the user is currently logged in (sync check).
+/// Logged in if Supabase session exists OR guest mode is active.
 final isLoggedInProvider = Provider<bool>((ref) {
+  if (ref.watch(guestModeProvider)) return true;
   final authState = ref.watch(authStateProvider);
   return authState.whenOrNull(data: (isLoggedIn) => isLoggedIn) ?? false;
 });
 
-/// Current user profile — fetches from Supabase `profiles` table.
+/// Returns guest profile in guest mode, otherwise fetches from Supabase.
 final currentUserProvider = FutureProvider<UserModel?>((ref) async {
+  if (ref.watch(guestModeProvider)) return _guestProfile;
+
   final isLoggedIn = ref.watch(isLoggedInProvider);
   if (!isLoggedIn) return null;
 
@@ -40,8 +59,8 @@ final currentUserProvider = FutureProvider<UserModel?>((ref) async {
   }
 });
 
-/// Whether the user has taken the diagnostic test.
 final hasTakenDiagnosticProvider = Provider<bool>((ref) {
+  if (ref.watch(guestModeProvider)) return true;
   final userAsync = ref.watch(currentUserProvider);
   return userAsync.whenOrNull(data: (user) => user?.hasTakenDiagnostic ?? false) ?? false;
 });

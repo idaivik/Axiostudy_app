@@ -19,6 +19,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isGuestLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
 
@@ -104,6 +105,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       setState(() => _errorMessage = msg);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleTestLogin() async {
+    setState(() { _isGuestLoading = true; _errorMessage = null; });
+    try {
+      final repo = ref.read(authRepositoryProvider);
+      await repo.signInWithEmail('test@axiostudy.com', 'Test@1234');
+      if (mounted) context.go('/');
+    } catch (e) {
+      setState(() => _errorMessage = 'Test profile login failed. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isGuestLoading = false);
     }
   }
 
@@ -303,6 +317,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Test profile — real Supabase sign-in
+              FadeTransition(
+                opacity: _fadeAnim,
+                child: GestureDetector(
+                  onTap: _isGuestLoading ? null : _handleTestLogin,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceLight,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_isGuestLoading)
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.textMedium,
+                            ),
+                          )
+                        else
+                          Icon(LucideIcons.userCheck, size: 16, color: AppColors.textMedium),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Continue as Test Profile',
+                          style: AppTypography.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
 

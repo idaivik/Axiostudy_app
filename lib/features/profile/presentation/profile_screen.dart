@@ -133,11 +133,11 @@ class ProfileScreen extends ConsumerWidget {
                           child: const Text('Cancel'),
                         ),
                         ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
                             Navigator.pop(ctx);
-                            final repo = ref.read(authRepositoryProvider);
-                            repo.signOut();
-                            context.go('/login');
+                            ref.read(guestModeProvider.notifier).state = false;
+                            await ref.read(authRepositoryProvider).signOut();
+                            if (context.mounted) context.go('/login');
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.error,
