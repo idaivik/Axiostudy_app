@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../features/auth/data/auth_providers.dart';
 import '../../../features/onboarding/presentation/diagnostic_modal.dart';
+import '../../analytics/data/analytics_providers.dart';
 import 'widgets/readiness_banner.dart';
 import 'widgets/todays_plan_card.dart';
 import 'widgets/strength_meter_card.dart';
@@ -167,9 +168,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
-class _AIInsightStrip extends StatelessWidget {
+class _AIInsightStrip extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final weakAsync = ref.watch(weakTopicsProvider);
+    final weakTopics = weakAsync.valueOrNull ?? [];
+
+    final message = weakTopics.isEmpty
+        ? 'Take a test to get your personalized AI study insights'
+        : weakTopics.length == 1
+            ? 'AI detected 1 weak topic from your tests — focus on ${_topicName(weakTopics.first.topicId)} today'
+            : 'AI detected ${weakTopics.length} weak topics from your tests — focus on those today';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -190,7 +200,7 @@ class _AIInsightStrip extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'AI detected 2 weak topics from your last test — focus on those today',
+              message,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -204,4 +214,16 @@ class _AIInsightStrip extends StatelessWidget {
       ),
     );
   }
+
+  String _topicName(String topicId) {
+    final parts = topicId.split('_');
+    if (parts.length >= 3) {
+      return parts.sublist(2).map((s) {
+        if (s.isEmpty) return s;
+        return s[0].toUpperCase() + s.substring(1);
+      }).join(' ');
+    }
+    return topicId;
+  }
 }
+

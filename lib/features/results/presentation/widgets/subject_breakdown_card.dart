@@ -4,34 +4,68 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/axio_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
+import '../../../analytics/domain/analytics_models.dart';
 
 class SubjectBreakdownCard extends StatelessWidget {
-  const SubjectBreakdownCard({super.key});
+  final Map<String, SubjectBreakdown>? breakdown;
+  const SubjectBreakdownCard({super.key, this.breakdown});
 
   @override
   Widget build(BuildContext context) {
+    final subjects = breakdown?.values.toList() ?? [];
+
+    // Fallback label & data
+    if (subjects.isEmpty) {
+      return AxioCard(
+        title: 'Subject Breakdown',
+        leading: Icon(LucideIcons.pieChart, color: AppColors.primary, size: 22),
+        collapsedContent: Text('No subject data yet', style: AppTypography.bodyMedium),
+        expandedContent: const SizedBox.shrink(),
+      );
+    }
+
     return AxioCard(
       title: 'Subject Breakdown',
       leading: Icon(LucideIcons.pieChart, color: AppColors.primary, size: 22),
       expandedContent: Column(
-        children: [
-          _SubjectBar(name: 'Physics', score: 0.85, icon: LucideIcons.atom, color: AppColors.physics),
-          const SizedBox(height: 14),
-          _SubjectBar(name: 'Chemistry', score: 0.60, icon: LucideIcons.flaskConical, color: AppColors.chemistry),
-          const SizedBox(height: 14),
-          _SubjectBar(name: 'Mathematics', score: 0.90, icon: LucideIcons.sigma, color: AppColors.mathematics),
-        ],
+        children: subjects.map((s) {
+          final color = _colorFor(s.subjectId);
+          final icon = _iconFor(s.subjectId);
+          return Padding(
+            padding: EdgeInsets.only(bottom: s == subjects.last ? 0 : 14),
+            child: _SubjectBar(name: s.subjectName, score: s.accuracy, icon: icon, color: color),
+          );
+        }).toList(),
       ),
       collapsedContent: Row(
-        children: [
-          _MiniScore(label: 'PHY', score: '85%', color: AppColors.physics),
-          const SizedBox(width: 12),
-          _MiniScore(label: 'CHE', score: '60%', color: AppColors.chemistry),
-          const SizedBox(width: 12),
-          _MiniScore(label: 'MAT', score: '90%', color: AppColors.mathematics),
-        ],
+        children: subjects.map((s) {
+          final color = _colorFor(s.subjectId);
+          final label = s.subjectName.substring(0, 3).toUpperCase();
+          return Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: _MiniScore(label: label, score: '${(s.accuracy * 100).round()}%', color: color),
+          );
+        }).toList(),
       ),
     );
+  }
+
+  Color _colorFor(String subjectId) {
+    switch (subjectId) {
+      case 'physics': return AppColors.physics;
+      case 'chemistry': return AppColors.chemistry;
+      case 'mathematics': return AppColors.mathematics;
+      default: return AppColors.primary;
+    }
+  }
+
+  IconData _iconFor(String subjectId) {
+    switch (subjectId) {
+      case 'physics': return LucideIcons.atom;
+      case 'chemistry': return LucideIcons.flaskConical;
+      case 'mathematics': return LucideIcons.sigma;
+      default: return LucideIcons.bookOpen;
+    }
   }
 }
 

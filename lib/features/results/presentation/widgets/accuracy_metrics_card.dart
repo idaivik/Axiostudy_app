@@ -3,23 +3,41 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/axio_card.dart';
 import '../../../../core/widgets/progress_bar.dart';
+import '../../../analytics/domain/analytics_models.dart';
 
 class AccuracyMetricsCard extends StatelessWidget {
-  const AccuracyMetricsCard({super.key});
+  final Map<String, DifficultyBreakdown>? breakdown;
+  const AccuracyMetricsCard({super.key, this.breakdown});
 
   @override
   Widget build(BuildContext context) {
+    final easy = breakdown?['easy'];
+    final medium = breakdown?['medium'];
+    final hard = breakdown?['hard'];
+
+    // Build collapsed summary
+    final parts = <String>[];
+    if (easy != null) parts.add('Easy: ${(easy.accuracy * 100).round()}%');
+    if (medium != null) parts.add('Medium: ${(medium.accuracy * 100).round()}%');
+    if (hard != null) parts.add('Hard: ${(hard.accuracy * 100).round()}%');
+    final summary = parts.isNotEmpty ? parts.join(' • ') : 'No difficulty data yet';
+
     return AxioCard(
       title: 'Accuracy by Difficulty',
       leading: Icon(Icons.gps_fixed_rounded, color: AppColors.success, size: 22),
-      collapsedContent: Text('Easy: 90% • Medium: 65% • Hard: 40%', style: AppTypography.bodyMedium),
+      collapsedContent: Text(summary, style: AppTypography.bodyMedium),
       expandedContent: Column(
-        children: const [
-          _DifficultyRow(level: 'Easy', correct: 9, total: 10, color: AppColors.success),
-          SizedBox(height: 12),
-          _DifficultyRow(level: 'Medium', correct: 13, total: 20, color: AppColors.warning),
-          SizedBox(height: 12),
-          _DifficultyRow(level: 'Hard', correct: 4, total: 10, color: AppColors.error),
+        children: [
+          if (easy != null)
+            _DifficultyRow(level: 'Easy', correct: easy.correct, total: easy.total, color: AppColors.success),
+          if (easy != null && (medium != null || hard != null))
+            const SizedBox(height: 12),
+          if (medium != null)
+            _DifficultyRow(level: 'Medium', correct: medium.correct, total: medium.total, color: AppColors.warning),
+          if (medium != null && hard != null)
+            const SizedBox(height: 12),
+          if (hard != null)
+            _DifficultyRow(level: 'Hard', correct: hard.correct, total: hard.total, color: AppColors.error),
         ],
       ),
     );

@@ -5,34 +5,70 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../core/widgets/axio_card.dart';
 import '../../../../core/widgets/subject_badge.dart';
 import '../../../../shared/models/enums.dart';
+import '../../../analytics/domain/analytics_models.dart';
 
 class ChapterAnalysisCard extends StatelessWidget {
-  const ChapterAnalysisCard({super.key});
+  final Map<String, ChapterBreakdown>? breakdown;
+  const ChapterAnalysisCard({super.key, this.breakdown});
 
   @override
   Widget build(BuildContext context) {
+    final chapters = breakdown?.values.toList() ?? [];
+
+    if (chapters.isEmpty) {
+      return AxioCard(
+        title: 'Chapter Analysis',
+        leading: Icon(LucideIcons.lineChart, color: AppColors.warning, size: 22),
+        collapsedContent: Text('No chapter data yet', style: AppTypography.bodyMedium),
+        expandedContent: const SizedBox.shrink(),
+      );
+    }
+
+    // Sort by accuracy ascending (weak first)
+    final sorted = List<ChapterBreakdown>.from(chapters)
+      ..sort((a, b) => a.accuracy.compareTo(b.accuracy));
+
+    final weakCount = sorted.where((c) => c.accuracy < 0.5).length;
+
     return AxioCard(
       title: 'Chapter Analysis',
       leading: Icon(LucideIcons.lineChart, color: AppColors.warning, size: 22),
-      collapsedContent: Text('3 weak chapters identified', style: AppTypography.bodyMedium),
+      collapsedContent: Text(
+        weakCount > 0 ? '$weakCount weak chapters identified' : 'All chapters performing well',
+        style: AppTypography.bodyMedium,
+      ),
       expandedContent: Column(
-        children: const [
-          _ChapterRow(name: 'Rotational Motion', subject: 'Physics', score: 35, strength: TopicStrength.weak),
-          SizedBox(height: 8),
-          _ChapterRow(name: 'Physical Chemistry', subject: 'Chemistry', score: 40, strength: TopicStrength.weak),
-          SizedBox(height: 8),
-          _ChapterRow(name: 'Thermodynamics', subject: 'Physics', score: 55, strength: TopicStrength.moderate),
-          SizedBox(height: 8),
-          _ChapterRow(name: 'Algebra', subject: 'Mathematics', score: 60, strength: TopicStrength.moderate),
-          SizedBox(height: 8),
-          _ChapterRow(name: 'Calculus', subject: 'Mathematics', score: 85, strength: TopicStrength.strong),
-          SizedBox(height: 8),
-          _ChapterRow(name: 'Mechanics', subject: 'Physics', score: 80, strength: TopicStrength.strong),
-          SizedBox(height: 8),
-          _ChapterRow(name: 'Organic Chemistry', subject: 'Chemistry', score: 70, strength: TopicStrength.strong),
-        ],
+        children: sorted.asMap().entries.map((entry) {
+          final c = entry.value;
+          final score = (c.accuracy * 100).round();
+          final strength = score < 40
+              ? TopicStrength.weak
+              : score < 70
+                  ? TopicStrength.moderate
+                  : TopicStrength.strong;
+          final subjectName = _subjectName(c.subjectId);
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: entry.key == sorted.length - 1 ? 0 : 8),
+            child: _ChapterRow(
+              name: c.chapterName,
+              subject: subjectName,
+              score: score,
+              strength: strength,
+            ),
+          );
+        }).toList(),
       ),
     );
+  }
+
+  String _subjectName(String id) {
+    switch (id) {
+      case 'physics': return 'Physics';
+      case 'chemistry': return 'Chemistry';
+      case 'mathematics': return 'Mathematics';
+      default: return id;
+    }
   }
 }
 

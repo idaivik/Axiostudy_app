@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -7,18 +8,18 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/progress_circle.dart';
 import '../../../core/widgets/gradient_background.dart';
 import '../../../shared/models/enums.dart';
+import '../data/analytics_providers.dart';
+import '../domain/analytics_models.dart';
 
-// AI Analytics Engine Output — Visual Dashboard
-// Processing Layer: Score Calculation, Topic-wise Analysis, Difficulty Pattern Detection,
-// Trend Analysis, Comparison with Peers
-class AnalyticsScreen extends StatefulWidget {
+// AI Analytics Engine Output — Visual Dashboard (now data-driven)
+class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
 
   @override
-  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+  ConsumerState<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
 
-class _AnalyticsScreenState extends State<AnalyticsScreen>
+class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
@@ -38,10 +39,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Widget build(BuildContext context) {
     return GradientBackground(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, size: 20),
-          onPressed: () => context.pop(),
-        ),
+        automaticallyImplyLeading: false,
         title: const Text('Analytics'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
@@ -90,10 +88,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 }
 
-// Tab 1: Overview — Score Calculation output + Comparison with Peers
-class _OverviewTab extends StatelessWidget {
+// Tab 1: Overview — real data from providers
+class _OverviewTab extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(userStatsProvider);
+    final masteryAsync = ref.watch(subjectMasteryProvider);
+
+    final stats = statsAsync.valueOrNull ?? {};
+    final mastery = masteryAsync.valueOrNull ?? {};
+
+    final testsTaken = stats['tests_taken'] ?? 0;
+    final avgScore = (stats['avg_score'] as num?)?.toDouble() ?? 0;
+    final streak = stats['current_streak'] ?? 0;
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
@@ -103,54 +111,12 @@ class _OverviewTab extends StatelessWidget {
           // Score summary row
           Row(
             children: [
-              Expanded(child: _MetricCard(label: 'Tests Taken', value: '24', icon: LucideIcons.fileCheck, color: AppColors.primary, bg: AppColors.greenSurface)),
+              Expanded(child: _MetricCard(label: 'Tests Taken', value: '$testsTaken', icon: LucideIcons.fileCheck, color: AppColors.primary, bg: AppColors.greenSurface)),
               const SizedBox(width: 10),
-              Expanded(child: _MetricCard(label: 'Avg Score', value: '72%', icon: LucideIcons.star, color: AppColors.mathematics, bg: AppColors.warningLight)),
+              Expanded(child: _MetricCard(label: 'Avg Score', value: '${avgScore.round()}%', icon: LucideIcons.star, color: AppColors.mathematics, bg: AppColors.warningLight)),
               const SizedBox(width: 10),
-              Expanded(child: _MetricCard(label: 'Study Streak', value: '7d', icon: LucideIcons.flame, color: AppColors.weak, bg: AppColors.warningLight)),
+              Expanded(child: _MetricCard(label: 'Study Streak', value: '${streak}d', icon: LucideIcons.flame, color: AppColors.weak, bg: AppColors.warningLight)),
             ],
-          ),
-          const SizedBox(height: 14),
-
-          // Percentile — Score Calculation output
-          _SectionCard(
-            title: 'Percentile Rank',
-            subtitle: 'Comparison with Peers',
-            icon: LucideIcons.award,
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _PercentileCircle(label: 'Overall', percentile: 82, color: AppColors.primary),
-                    _PercentileCircle(label: 'Physics', percentile: 91, color: AppColors.physics),
-                    _PercentileCircle(label: 'Chemistry', percentile: 67, color: AppColors.chemistry),
-                    _PercentileCircle(label: 'Maths', percentile: 88, color: AppColors.mathematics),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.greenWash,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(LucideIcons.trendingUp, size: 16, color: AppColors.primary),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'You scored higher than 82% of students who took this test',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.greenStrong),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
           ),
           const SizedBox(height: 14),
 
@@ -164,9 +130,24 @@ class _OverviewTab extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _SubjectCircle(label: 'Physics', progress: 0.65, type: SubjectType.physics, color: AppColors.physics),
-                  _SubjectCircle(label: 'Chemistry', progress: 0.58, type: SubjectType.chemistry, color: AppColors.chemistry),
-                  _SubjectCircle(label: 'Maths', progress: 0.72, type: SubjectType.mathematics, color: AppColors.mathematics),
+                  _SubjectCircle(
+                    label: 'Physics',
+                    progress: mastery['physics'] ?? 0,
+                    type: SubjectType.physics,
+                    color: AppColors.physics,
+                  ),
+                  _SubjectCircle(
+                    label: 'Chemistry',
+                    progress: mastery['chemistry'] ?? 0,
+                    type: SubjectType.chemistry,
+                    color: AppColors.chemistry,
+                  ),
+                  _SubjectCircle(
+                    label: 'Maths',
+                    progress: mastery['mathematics'] ?? 0,
+                    type: SubjectType.mathematics,
+                    color: AppColors.mathematics,
+                  ),
                 ],
               ),
             ),
@@ -179,64 +160,81 @@ class _OverviewTab extends StatelessWidget {
   }
 }
 
-// Tab 2: Topics — Topic-wise Analysis + Difficulty Pattern Detection
-class _TopicsTab extends StatelessWidget {
-  final _weakTopics = const [
-    _Topic('Electrochemistry', 'Chemistry', 32, AppColors.wrong),
-    _Topic('Rotational Dynamics', 'Physics', 41, AppColors.weak),
-    _Topic('Matrices & Determinants', 'Mathematics', 45, AppColors.weak),
-    _Topic('Thermodynamics 2nd Law', 'Physics', 48, AppColors.weak),
-  ];
-
-  final _strongTopics = const [
-    _Topic('Thermodynamics', 'Physics', 89, AppColors.primary),
-    _Topic('Organic Chemistry', 'Chemistry', 82, AppColors.primary),
-    _Topic('Calculus', 'Mathematics', 78, AppColors.primary),
-    _Topic('Optics', 'Physics', 76, AppColors.primary),
-  ];
-
+// Tab 2: Topics — real weak/strong topics from providers
+class _TopicsTab extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final weakAsync = ref.watch(weakTopicsProvider);
+    final strongAsync = ref.watch(strongTopicsProvider);
+
+    final weakTopics = weakAsync.valueOrNull ?? [];
+    final strongTopics = strongAsync.valueOrNull ?? [];
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Heat map — Difficulty Pattern Detection
-          _SectionCard(
-            title: 'Performance Heat Map',
-            subtitle: 'Easy questions missed vs. Difficult questions aced',
-            icon: LucideIcons.layoutGrid,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: _HeatMap(),
-            ),
-          ),
-          const SizedBox(height: 14),
-
           // Weak topics
           _SectionCard(
             title: 'Weak Topics',
-            subtitle: 'AI-detected areas to focus on',
+            subtitle: weakTopics.isEmpty
+                ? 'No weak topics detected yet'
+                : 'AI-detected areas to focus on',
             icon: LucideIcons.alertTriangle,
             iconColor: AppColors.wrong,
             iconBg: AppColors.errorLight,
-            child: Column(
-              children: _weakTopics.map((t) => _TopicBar(topic: t)).toList(),
-            ),
+            child: weakTopics.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      'Take a test to see your weak areas',
+                      style: AppTypography.bodyMedium,
+                    ),
+                  )
+                : Column(
+                    children: weakTopics.take(5).map((t) {
+                      final score = (t.accuracy * 100).round();
+                      final color = score < 35 ? AppColors.wrong : AppColors.weak;
+                      return _TopicBar(
+                        name: _topicDisplayName(t.topicId),
+                        subject: _subjectName(t.subjectId),
+                        score: score,
+                        color: color,
+                      );
+                    }).toList(),
+                  ),
           ),
           const SizedBox(height: 14),
 
           // Strong topics
           _SectionCard(
             title: 'Strong Topics',
-            subtitle: 'Topics you\'ve mastered',
+            subtitle: strongTopics.isEmpty
+                ? 'No mastered topics yet'
+                : 'Topics you\'ve mastered',
             icon: LucideIcons.checkCircle2,
             iconColor: AppColors.primary,
             iconBg: AppColors.greenSurface,
-            child: Column(
-              children: _strongTopics.map((t) => _TopicBar(topic: t)).toList(),
-            ),
+            child: strongTopics.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      'Keep practicing to master topics',
+                      style: AppTypography.bodyMedium,
+                    ),
+                  )
+                : Column(
+                    children: strongTopics.take(5).map((t) {
+                      final score = (t.accuracy * 100).round();
+                      return _TopicBar(
+                        name: _topicDisplayName(t.topicId),
+                        subject: _subjectName(t.subjectId),
+                        score: score,
+                        color: AppColors.primary,
+                      );
+                    }).toList(),
+                  ),
           ),
 
           const SizedBox(height: 80),
@@ -244,97 +242,152 @@ class _TopicsTab extends StatelessWidget {
       ),
     );
   }
+
+  String _topicDisplayName(String topicId) {
+    final parts = topicId.split('_');
+    if (parts.length >= 3) {
+      return parts.sublist(2).map((s) {
+        if (s.isEmpty) return s;
+        return s[0].toUpperCase() + s.substring(1);
+      }).join(' ');
+    }
+    return topicId;
+  }
+
+  String _subjectName(String id) {
+    switch (id) {
+      case 'physics': return 'Physics';
+      case 'chemistry': return 'Chemistry';
+      case 'mathematics': return 'Mathematics';
+      default: return id;
+    }
+  }
 }
 
-// Tab 3: Trends — Trend Analysis + Progress over time
-class _TrendsTab extends StatelessWidget {
+// Tab 3: Trends — real score history + streak data
+class _TrendsTab extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(scoreHistoryProvider);
+    final streakAsync = ref.watch(studyStreakProvider);
+
+    final history = historyAsync.valueOrNull ?? [];
+    final streak = streakAsync.valueOrNull ?? const StudyStreak();
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Score trend — Progress over time
+          // Score trend chart
           _SectionCard(
             title: 'Score Trend',
-            subtitle: 'Progress over time',
+            subtitle: history.isEmpty
+                ? 'Take tests to see your progress'
+                : 'Progress over ${history.length} tests',
             icon: LucideIcons.trendingUp,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: SizedBox(
-                height: 200,
-                child: LineChart(
-                  LineChartData(
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: 25,
-                      getDrawingHorizontalLine: (_) => FlLine(color: AppColors.divider, strokeWidth: 0.5),
-                    ),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 30,
-                          interval: 25,
-                          getTitlesWidget: (v, _) => Text('${v.toInt()}', style: AppTypography.caption.copyWith(fontSize: 10)),
-                        ),
+            child: history.length < 2
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: AppColors.greenWash,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 24,
-                          getTitlesWidget: (v, _) {
-                            const labels = ['Apr 1', 'Apr 8', 'Apr 15', 'Apr 22', 'Apr 29', 'May 5'];
-                            final i = v.toInt();
-                            if (i < 0 || i >= labels.length) return const SizedBox.shrink();
-                            return Text(labels[i], style: AppTypography.caption.copyWith(fontSize: 9));
-                          },
-                        ),
-                      ),
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    minY: 0, maxY: 100,
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: const [FlSpot(0, 45), FlSpot(1, 52), FlSpot(2, 48), FlSpot(3, 58), FlSpot(4, 65), FlSpot(5, 72.5)],
-                        isCurved: true,
-                        color: AppColors.primary,
-                        barWidth: 3,
-                        dotData: FlDotData(
-                          show: true,
-                          getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
-                            radius: 4, color: AppColors.primary,
-                            strokeWidth: 2, strokeColor: AppColors.white,
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.lineChart, size: 20, color: AppColors.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Take at least 2 tests to see your score trend',
+                              style: AppTypography.bodyMedium.copyWith(color: AppColors.textMedium),
+                            ),
                           ),
-                        ),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                            colors: [AppColors.primary.withValues(alpha: 0.15), AppColors.primary.withValues(alpha: 0.0)],
+                        ],
+                      ),
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: SizedBox(
+                      height: 200,
+                      child: LineChart(
+                        LineChartData(
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: false,
+                            horizontalInterval: 25,
+                            getDrawingHorizontalLine: (_) => FlLine(color: AppColors.divider, strokeWidth: 0.5),
                           ),
+                          titlesData: FlTitlesData(
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 30,
+                                interval: 25,
+                                getTitlesWidget: (v, _) => Text('${v.toInt()}', style: AppTypography.caption.copyWith(fontSize: 10)),
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 24,
+                                getTitlesWidget: (v, _) {
+                                  final i = v.toInt();
+                                  if (i < 0 || i >= history.length) return const SizedBox.shrink();
+                                  final date = history[i].completedAt;
+                                  final label = '${date.day}/${date.month}';
+                                  return Text(label, style: AppTypography.caption.copyWith(fontSize: 9));
+                                },
+                              ),
+                            ),
+                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          minY: 0, maxY: 100,
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: List.generate(
+                                history.length,
+                                (i) => FlSpot(i.toDouble(), history[i].scorePercentage.clamp(0, 100)),
+                              ),
+                              isCurved: true,
+                              color: AppColors.primary,
+                              barWidth: 3,
+                              dotData: FlDotData(
+                                show: true,
+                                getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
+                                  radius: 4, color: AppColors.primary,
+                                  strokeWidth: 2, strokeColor: AppColors.white,
+                                ),
+                              ),
+                              belowBarData: BarAreaData(
+                                show: true,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                                  colors: [AppColors.primary.withValues(alpha: 0.15), AppColors.primary.withValues(alpha: 0.0)],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ),
           ),
           const SizedBox(height: 14),
 
-          // Consistency patterns
+          // Consistency patterns (real streak data)
           _SectionCard(
             title: 'Consistency Patterns',
             subtitle: 'Study activity over last 30 days',
             icon: LucideIcons.calendar,
             child: Padding(
               padding: const EdgeInsets.only(top: 16),
-              child: _ConsistencyGrid(),
+              child: _ConsistencyGrid(recentActivity: streak.recentActivity),
             ),
           ),
 
@@ -436,39 +489,6 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _PercentileCircle extends StatelessWidget {
-  final String label;
-  final int percentile;
-  final Color color;
-
-  const _PercentileCircle({required this.label, required this.percentile, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: percentile / 100),
-          duration: const Duration(milliseconds: 1000),
-          curve: Curves.easeOutCubic,
-          builder: (context, val, child) => ProgressCircle(
-            progress: val,
-            size: 64,
-            strokeWidth: 6,
-            progressColor: color,
-            centerWidget: Text(
-              '${(val * 100).round()}',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textDark),
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(label, style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600)),
-      ],
-    );
-  }
-}
-
 class _SubjectCircle extends StatelessWidget {
   final String label;
   final double progress;
@@ -501,16 +521,12 @@ class _SubjectCircle extends StatelessWidget {
   }
 }
 
-class _Topic {
+class _TopicBar extends StatelessWidget {
   final String name, subject;
   final int score;
   final Color color;
-  const _Topic(this.name, this.subject, this.score, this.color);
-}
 
-class _TopicBar extends StatelessWidget {
-  final _Topic topic;
-  const _TopicBar({required this.topic});
+  const _TopicBar({required this.name, required this.subject, required this.score, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -525,17 +541,17 @@ class _TopicBar extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(topic.name, style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w500, fontSize: 14)),
-                    Text(topic.subject, style: AppTypography.caption.copyWith(color: topic.color, fontWeight: FontWeight.w600)),
+                    Text(name, style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w500, fontSize: 14)),
+                    Text(subject, style: AppTypography.caption.copyWith(color: color, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
-              Text('${topic.score}%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: topic.color)),
+              Text('$score%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
             ],
           ),
           const SizedBox(height: 8),
           TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: topic.score / 100),
+            tween: Tween(begin: 0, end: score / 100),
             duration: const Duration(milliseconds: 800),
             curve: Curves.easeOutCubic,
             builder: (context, val, child) => ClipRRect(
@@ -544,7 +560,7 @@ class _TopicBar extends StatelessWidget {
                 value: val,
                 minHeight: 5,
                 backgroundColor: AppColors.surfaceDark,
-                valueColor: AlwaysStoppedAnimation<Color>(topic.color),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
               ),
             ),
           ),
@@ -554,92 +570,39 @@ class _TopicBar extends StatelessWidget {
   }
 }
 
-// Heat map for difficulty pattern detection
-class _HeatMap extends StatelessWidget {
-  static const _labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  static const _data = [
-    [0.9, 0.6, 0.3, 0.7, 0.8, 0.4, 0.2],
-    [0.5, 0.9, 0.7, 0.3, 0.6, 0.8, 0.9],
-    [0.2, 0.4, 0.8, 0.9, 0.5, 0.7, 0.6],
-    [0.8, 0.3, 0.6, 0.4, 0.9, 0.2, 0.7],
-  ];
-  static const _rowLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            const SizedBox(width: 52),
-            ..._labels.map((l) => Expanded(
-              child: Text(l, textAlign: TextAlign.center, style: AppTypography.caption.copyWith(fontSize: 10, fontWeight: FontWeight.w600)),
-            )),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ..._data.asMap().entries.map((row) => Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 52,
-                child: Text(_rowLabels[row.key], style: AppTypography.caption.copyWith(fontSize: 10)),
-              ),
-              ...row.value.map((val) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(2),
-                  child: Container(
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: val * 0.85),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                  ),
-                ),
-              )),
-            ],
-          ),
-        )),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text('Less', style: AppTypography.caption.copyWith(fontSize: 10)),
-            const SizedBox(width: 6),
-            ...List.generate(5, (i) => Container(
-              width: 14, height: 14,
-              margin: const EdgeInsets.only(right: 3),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: (i + 1) * 0.2),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            )),
-            const SizedBox(width: 4),
-            Text('More', style: AppTypography.caption.copyWith(fontSize: 10)),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-// Consistency grid (GitHub-style)
+// Consistency grid using real activity data
 class _ConsistencyGrid extends StatelessWidget {
+  final List<DayActivity> recentActivity;
+  const _ConsistencyGrid({required this.recentActivity});
+
   @override
   Widget build(BuildContext context) {
+    // Build a 30-day grid
+    final now = DateTime.now();
+    final activityMap = <String, int>{};
+    for (final a in recentActivity) {
+      activityMap[a.date.toIso8601String().split('T').first] = a.testsTaken;
+    }
+
     return Wrap(
       spacing: 4,
       runSpacing: 4,
       children: List.generate(30, (i) {
-        final intensity = (i % 7 == 0 || i % 3 == 0) ? 0.0 : ((i % 5 == 0) ? 0.8 : (i % 2 == 0 ? 0.5 : 0.3));
-        return Container(
-          width: 22, height: 22,
-          decoration: BoxDecoration(
-            color: intensity == 0
-                ? AppColors.surfaceDark
-                : AppColors.primary.withValues(alpha: intensity),
-            borderRadius: BorderRadius.circular(4),
+        final date = now.subtract(Duration(days: 29 - i));
+        final dateStr = date.toIso8601String().split('T').first;
+        final tests = activityMap[dateStr] ?? 0;
+        final intensity = tests == 0 ? 0.0 : (tests >= 3 ? 0.9 : tests >= 2 ? 0.6 : 0.3);
+
+        return Tooltip(
+          message: '$dateStr: $tests tests',
+          child: Container(
+            width: 22, height: 22,
+            decoration: BoxDecoration(
+              color: intensity == 0
+                  ? AppColors.surfaceDark
+                  : AppColors.primary.withValues(alpha: intensity),
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
         );
       }),

@@ -2,6 +2,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../domain/test_models.dart';
 import '../../../shared/models/enums.dart';
+import '../../analytics/data/analytics_engine.dart';
+import '../../analytics/domain/analytics_models.dart';
 
 /// Repository for test operations against Supabase.
 class TestRepository {
@@ -102,6 +104,46 @@ class TestRepository {
     }
   }
 
+  /// Submit a test attempt AND run the AI analytics engine.
+  ///
+  /// This is the primary method to use — it persists the attempt,
+  /// then processes it through the analytics pipeline (weakness detection,
+  /// recommendations, score history, streak, profile stats).
+  ///
+  /// Returns the computed analytics result.
+  Future<AttemptAnalyticsResult?> submitAndAnalyze({
+    required TestAttempt attempt,
+    required List<Question> questions,
+    required String testName,
+    required AnalyticsEngine analyticsEngine,
+  }) async {
+    // 1. Submit the attempt (persist answers + update status)
+    await submitAttempt(attempt);
+
+    // 2. Run the analytics engine
+    try {
+      final result = await analyticsEngine.processAttempt(
+        attempt: attempt,
+        questions: questions,
+        testName: testName,
+      );
+
+      // 3. Mark attempt as analyzed
+      await _client
+          .from('test_attempts')
+          .update({'status': 'analyzed'})
+          .eq('id', attempt.id);
+
+      return result;
+    } catch (e) {
+      // Analytics failure should not block test submission
+      // The attempt is already saved — analytics can be retried
+      // ignore: avoid_print
+      print('Analytics engine error: $e');
+      return null;
+    }
+  }
+
   /// Fetch a completed test attempt with its answers.
   Future<TestAttempt> getAttemptWithAnswers(String attemptId) async {
     final attemptData = await _client
@@ -135,3 +177,4 @@ class TestRepository {
     return data.map((json) => TestAttempt.fromJson(json)).toList();
   }
 }
+

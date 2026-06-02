@@ -5,14 +5,13 @@ import '../../features/auth/data/auth_providers.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/test/presentation/test_screen.dart';
-import '../../features/test/presentation/tests_list_screen.dart';
 import '../../features/results/presentation/results_screen.dart';
-import '../../features/subjects/presentation/subjects_screen.dart';
 import '../../features/subjects/presentation/chapter_detail_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/settings_screen.dart';
 import '../../features/onboarding/presentation/test_selection_screen.dart';
+import '../../features/practice/presentation/practice_screen.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/gradient_background.dart';
 
@@ -45,13 +44,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/practice',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: SubjectsScreen(),
+              child: PracticeScreen(),
             ),
           ),
           GoRoute(
-            path: '/tests',
+            path: '/analytics',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: TestsListScreen(),
+              child: AnalyticsScreen(),
             ),
           ),
           GoRoute(
@@ -81,8 +80,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: '/analytics',
-        builder: (context, state) => const AnalyticsScreen(),
+        path: '/subjects/:subjectId',
+        builder: (context, state) => ChapterDetailScreen(
+          subjectId: state.pathParameters['subjectId']!,
+        ),
       ),
       GoRoute(
         path: '/settings',
@@ -108,7 +109,7 @@ class _ShellScaffold extends StatefulWidget {
 class _ShellScaffoldState extends State<_ShellScaffold> {
   int _currentIndex = 0;
 
-  static const _routes = ['/', '/practice', '/tests', '/profile'];
+  static const _routes = ['/', '/practice', '/analytics', '/profile'];
 
   @override
   Widget build(BuildContext context) {

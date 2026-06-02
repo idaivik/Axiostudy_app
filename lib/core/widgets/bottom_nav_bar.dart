@@ -16,7 +16,7 @@ class BottomNavBar extends StatelessWidget {
   static const _items = [
     _NavItem(icon: LucideIcons.layoutDashboard, label: 'Home'),
     _NavItem(icon: LucideIcons.bookOpen, label: 'Practice'),
-    _NavItem(icon: LucideIcons.clipboardCheck, label: 'Tests'),
+    _NavItem(icon: LucideIcons.brain, label: 'Analysis'),
     _NavItem(icon: LucideIcons.user, label: 'Profile'),
   ];
 

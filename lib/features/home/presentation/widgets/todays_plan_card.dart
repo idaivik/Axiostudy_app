@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../analytics/data/analytics_providers.dart';
+import '../../../analytics/domain/analytics_models.dart';
 
-class TodaysPlanCard extends StatefulWidget {
+class TodaysPlanCard extends ConsumerStatefulWidget {
   const TodaysPlanCard({super.key});
 
   @override
-  State<TodaysPlanCard> createState() => _TodaysPlanCardState();
+  ConsumerState<TodaysPlanCard> createState() => _TodaysPlanCardState();
 }
 
-class _TodaysPlanCardState extends State<TodaysPlanCard>
+class _TodaysPlanCardState extends ConsumerState<TodaysPlanCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late List<_PlanItem> _items;
+  final Set<int> _completedItems = {};
 
   @override
   void initState() {
@@ -24,12 +27,6 @@ class _TodaysPlanCardState extends State<TodaysPlanCard>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _items = [
-      _PlanItem(icon: LucideIcons.atom, color: AppColors.physics, topic: 'Rotational Motion', subject: 'Physics', subjectId: 'physics', duration: '25 min', done: true),
-      _PlanItem(icon: LucideIcons.flaskConical, color: AppColors.chemistry, topic: 'Electrochemistry', subject: 'Chemistry', subjectId: 'chemistry', duration: '30 min', done: false),
-      _PlanItem(icon: LucideIcons.sigma, color: AppColors.mathematics, topic: 'Matrices & Determinants', subject: 'Mathematics', subjectId: 'mathematics', duration: '20 min', done: false),
-      _PlanItem(icon: LucideIcons.atom, color: AppColors.physics, topic: 'Thermodynamics Review', subject: 'Physics', subjectId: 'physics', duration: '15 min', done: false),
-    ];
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) _controller.forward();
     });
@@ -44,17 +41,32 @@ class _TodaysPlanCardState extends State<TodaysPlanCard>
   void _toggle(int i) {
     HapticFeedback.lightImpact();
     setState(() {
-      _items[i] = _items[i].copyWith(done: !_items[i].done);
+      if (_completedItems.contains(i)) {
+        _completedItems.remove(i);
+      } else {
+        _completedItems.add(i);
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final done = _items.where((p) => p.done).length;
-    final total = _items.length;
+    final recsAsync = ref.watch(recommendationsProvider);
+    final recommendations = recsAsync.valueOrNull ?? [];
+
+    // Convert recommendations to plan items
+    final items = recommendations.take(4).toList();
+
+    // If no recommendations, show empty state with default items
+    if (items.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    final done = _completedItems.length;
+    final total = items.length;
     final allDone = done == total;
-    final next = _items.where((p) => !p.done).firstOrNull;
-    final progress = done / total;
+    final nextIdx = Iterable.generate(total).where((i) => !_completedItems.contains(i)).firstOrNull;
+    final progress = total > 0 ? done / total : 0.0;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -99,15 +111,15 @@ class _TodaysPlanCardState extends State<TodaysPlanCard>
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(
-                    color: allDone ? AppColors.greenSurface : AppColors.surfaceLight,
+                    color: AppColors.greenSurface,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    allDone ? 'Done' : '$done/$total',
+                    'AI Plan',
                     style: AppTypography.labelSmall.copyWith(
-                      color: allDone ? AppColors.primary : AppColors.textMedium,
+                      color: AppColors.greenStrong,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -136,12 +148,21 @@ class _TodaysPlanCardState extends State<TodaysPlanCard>
           ),
           const SizedBox(height: 16),
 
-          ...List.generate(_items.length, (i) => _ItemTile(
-            item: _items[i],
-            isLast: i == _items.length - 1,
-            onToggle: () => _toggle(i),
-            onNavigate: () => context.push('/subjects/${_items[i].subjectId}'),
-          )),
+          ...List.generate(items.length, (i) {
+            final rec = items[i];
+            final isDone = _completedItems.contains(i);
+            return _ItemTile(
+              rec: rec,
+              isDone: isDone,
+              isLast: i == items.length - 1,
+              onToggle: () => _toggle(i),
+              onNavigate: () {
+                if (rec.subjectId != null) {
+                  context.push('/subjects/${rec.subjectId}');
+                }
+              },
+            );
+          }),
 
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
@@ -149,7 +170,9 @@ class _TodaysPlanCardState extends State<TodaysPlanCard>
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: allDone ? null : () {
-                  if (next != null) context.push('/subjects/${next.subjectId}');
+                  if (nextIdx != null && items[nextIdx].subjectId != null) {
+                    context.push('/subjects/${items[nextIdx].subjectId}');
+                  }
                 },
                 icon: Icon(allDone ? LucideIcons.checkCircle2 : LucideIcons.play, size: 16),
                 label: Text(
@@ -168,38 +191,70 @@ class _TodaysPlanCardState extends State<TodaysPlanCard>
       ),
     );
   }
-}
 
-class _PlanItem {
-  final IconData icon;
-  final Color color;
-  final String topic, subject, subjectId, duration;
-  final bool done;
-
-  const _PlanItem({
-    required this.icon, required this.color, required this.topic,
-    required this.subject, required this.subjectId, required this.duration,
-    required this.done,
-  });
-
-  _PlanItem copyWith({bool? done}) => _PlanItem(
-    icon: icon, color: color, topic: topic, subject: subject,
-    subjectId: subjectId, duration: duration, done: done ?? this.done,
-  );
+  Widget _buildEmptyState() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.divider, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.slate900.withValues(alpha: 0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: AppColors.greenSurface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(LucideIcons.brain, color: AppColors.primary, size: 17),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Today's Focus", style: AppTypography.heading3),
+                const SizedBox(height: 3),
+                Text(
+                  'Take a test to get your AI-powered study plan',
+                  style: AppTypography.bodyMedium.copyWith(color: AppColors.textMedium),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ItemTile extends StatelessWidget {
-  final _PlanItem item;
+  final Recommendation rec;
+  final bool isDone;
   final bool isLast;
   final VoidCallback onToggle, onNavigate;
 
   const _ItemTile({
-    required this.item, required this.isLast,
+    required this.rec, required this.isDone, required this.isLast,
     required this.onToggle, required this.onNavigate,
   });
 
   @override
   Widget build(BuildContext context) {
+    final icon = _iconForType(rec.type, rec.subjectId);
+    final color = _colorForSubject(rec.subjectId);
+    final subject = _subjectName(rec.subjectId);
+
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, isLast ? 16 : 0),
       child: Column(
@@ -219,17 +274,17 @@ class _ItemTile extends StatelessWidget {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: item.done
+                        color: isDone
                             ? AppColors.primary.withValues(alpha: 0.1)
-                            : item.color.withValues(alpha: 0.1),
+                            : color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: Center(
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
-                          child: item.done
+                          child: isDone
                               ? Icon(LucideIcons.checkCircle2, key: const ValueKey('done'), size: 18, color: AppColors.primary)
-                              : Icon(item.icon, key: const ValueKey('icon'), size: 16, color: item.color),
+                              : Icon(icon, key: const ValueKey('icon'), size: 16, color: color),
                         ),
                       ),
                     ),
@@ -242,18 +297,18 @@ class _ItemTile extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item.topic,
+                            rec.title,
                             style: AppTypography.bodyLarge.copyWith(
                               fontWeight: FontWeight.w500,
                               fontSize: 15,
-                              decoration: item.done ? TextDecoration.lineThrough : null,
-                              color: item.done ? AppColors.textLight : AppColors.textDark,
+                              decoration: isDone ? TextDecoration.lineThrough : null,
+                              color: isDone ? AppColors.textLight : AppColors.textDark,
                             ),
                           ),
                           Text(
-                            item.subject,
+                            subject,
                             style: AppTypography.caption.copyWith(
-                              color: item.color,
+                              color: color,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -264,16 +319,16 @@ class _ItemTile extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceLight,
+                      color: _tagColor(rec.type).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(7),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.clock, size: 11, color: AppColors.textLight),
-                        const SizedBox(width: 4),
-                        Text(item.duration, style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600)),
-                      ],
+                    child: Text(
+                      _tagLabel(rec.type),
+                      style: AppTypography.caption.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: _tagColor(rec.type),
+                        fontSize: 10,
+                      ),
                     ),
                   ),
                 ],
@@ -285,5 +340,51 @@ class _ItemTile extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  IconData _iconForType(String type, String? subjectId) {
+    switch (subjectId) {
+      case 'physics': return LucideIcons.atom;
+      case 'chemistry': return LucideIcons.flaskConical;
+      case 'mathematics': return LucideIcons.sigma;
+      default: return LucideIcons.bookOpen;
+    }
+  }
+
+  Color _colorForSubject(String? subjectId) {
+    switch (subjectId) {
+      case 'physics': return AppColors.physics;
+      case 'chemistry': return AppColors.chemistry;
+      case 'mathematics': return AppColors.mathematics;
+      default: return AppColors.primary;
+    }
+  }
+
+  String _subjectName(String? subjectId) {
+    switch (subjectId) {
+      case 'physics': return 'Physics';
+      case 'chemistry': return 'Chemistry';
+      case 'mathematics': return 'Mathematics';
+      default: return 'General';
+    }
+  }
+
+  Color _tagColor(String type) {
+    switch (type) {
+      case 'weak_topic_drill': return AppColors.wrong;
+      case 'revision': return AppColors.weak;
+      case 'challenge': return AppColors.primary;
+      default: return AppColors.textMedium;
+    }
+  }
+
+  String _tagLabel(String type) {
+    switch (type) {
+      case 'weak_topic_drill': return 'Weak';
+      case 'revision': return 'Revise';
+      case 'challenge': return 'Challenge';
+      case 'chapter_test': return 'Test';
+      default: return 'Focus';
+    }
   }
 }
