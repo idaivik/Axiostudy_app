@@ -2,8 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/supabase/supabase_providers.dart';
 import '../../auth/data/auth_providers.dart';
 import '../domain/analytics_models.dart';
+import '../domain/chart_data_models.dart';
 import 'analytics_repository.dart';
 import 'analytics_engine.dart';
+import '../../../shared/models/enums.dart';
 
 /// Provides the AnalyticsRepository instance.
 final analyticsRepositoryProvider = Provider<AnalyticsRepository>((ref) {
@@ -121,3 +123,149 @@ final userStatsProvider =
     'longest_streak': streak.longestStreak,
   };
 });
+
+// ─── Chart-Specific Providers ───
+
+/// Radar Chart data: aggregates topic performance into sub-topic axes.
+/// Returns up to 6 data points grouped by strongest/weakest topics.
+final radarChartDataProvider =
+    FutureProvider<List<RadarDataPoint>>((ref) async {
+  final allTopics = await ref.watch(topicPerformanceProvider.future);
+  if (allTopics.isEmpty) return [];
+
+  // Take up to 6 topics sorted by total questions (most practiced)
+  final sorted = [...allTopics]
+    ..sort((a, b) => b.totalQuestions.compareTo(a.totalQuestions));
+  final top = sorted.take(6).toList();
+
+  return top.map((t) {
+    final label = _topicDisplayName(t.topicId);
+    return RadarDataPoint(
+      label: label,
+      value: t.accuracy.clamp(0.0, 1.0),
+      topicId: t.topicId,
+    );
+  }).toList();
+});
+
+/// Scatter Plot data: maps topic performance to (time, accuracy) pairs.
+final scatterPlotDataProvider =
+    FutureProvider<List<ScatterDataPoint>>((ref) async {
+  final allTopics = await ref.watch(topicPerformanceProvider.future);
+  if (allTopics.isEmpty) return [];
+
+  return allTopics
+      .where((t) => t.totalQuestions > 0 && t.avgTimeSeconds > 0)
+      .map((t) => ScatterDataPoint(
+            topicName: _topicDisplayName(t.topicId),
+            topicId: t.topicId,
+            subjectId: t.subjectId,
+            accuracy: t.accuracy.clamp(0.0, 1.0),
+            avgTimeSeconds: t.avgTimeSeconds,
+          ))
+      .toList();
+});
+
+/// Skill Tree data: fetches prerequisites from DB and merges with topic strength.
+final skillTreeDataProvider =
+    FutureProvider.family<List<SkillTreeNode>, String>(
+        (ref, subjectId) async {
+  final client = ref.watch(supabaseClientProvider);
+  final userId = client.auth.currentUser?.id;
+
+  // Fetch prerequisites from DB
+  List<TopicPrerequisite> prerequisites = [];
+  try {
+    final data = await client
+        .from('topic_prerequisites')
+        .select()
+        .eq('subject_id', subjectId);
+    prerequisites =
+        (data as List).map((e) => TopicPrerequisite.fromJson(e as Map<String, dynamic>)).toList();
+  } catch (_) {
+    // Table might not exist yet
+  }
+
+  if (prerequisites.isEmpty) return [];
+
+  // Get all unique topic IDs
+  final allTopicIds = <String>{};
+  for (final p in prerequisites) {
+    allTopicIds.add(p.topicId);
+    allTopicIds.add(p.prerequisiteTopicId);
+  }
+
+  // Fetch topic performance for strength
+  final performanceMap = <String, TopicPerformance>{};
+  if (userId != null) {
+    final allPerf = await ref.watch(topicPerformanceProvider.future);
+    for (final tp in allPerf) {
+      performanceMap[tp.topicId] = tp;
+    }
+  }
+
+  // Build prerequisite lookup
+  final prereqMap = <String, List<String>>{};
+  for (final p in prerequisites) {
+    prereqMap.putIfAbsent(p.topicId, () => []).add(p.prerequisiteTopicId);
+  }
+
+  // Build nodes
+  return allTopicIds.map((topicId) {
+    final perf = performanceMap[topicId];
+    final strength = perf != null
+        ? _parseStrength(perf.strength)
+        : TopicStrength.weak;
+
+    return SkillTreeNode(
+      topicId: topicId,
+      label: _topicDisplayName(topicId),
+      subjectId: subjectId,
+      strength: strength,
+      prerequisiteIds: prereqMap[topicId] ?? [],
+      accuracy: perf?.accuracy ?? 0.0,
+    );
+  }).toList();
+});
+
+/// Area Line Chart data: converts score history to TrendDataPoints.
+final areaLineChartDataProvider =
+    FutureProvider<List<TrendDataPoint>>((ref) async {
+  final history = await ref.watch(scoreHistoryProvider.future);
+  if (history.isEmpty) return [];
+
+  return history.map((h) => TrendDataPoint(
+    date: h.completedAt,
+    score: h.scorePercentage.clamp(0, 100),
+    testName: h.testName,
+  )).toList();
+});
+
+// ─── Helpers ───
+
+String _topicDisplayName(String topicId) {
+  final parts = topicId.split('_');
+  if (parts.length >= 3) {
+    return parts.sublist(2).map((s) {
+      if (s.isEmpty) return s;
+      return s[0].toUpperCase() + s.substring(1);
+    }).join(' ');
+  }
+  if (parts.length >= 2) {
+    return parts.sublist(1).map((s) {
+      if (s.isEmpty) return s;
+      return s[0].toUpperCase() + s.substring(1);
+    }).join(' ');
+  }
+  return topicId;
+}
+
+TopicStrength _parseStrength(String s) {
+  switch (s) {
+    case 'strong': return TopicStrength.strong;
+    case 'moderate': return TopicStrength.moderate;
+    case 'weak': return TopicStrength.weak;
+    default: return TopicStrength.moderate;
+  }
+}
+

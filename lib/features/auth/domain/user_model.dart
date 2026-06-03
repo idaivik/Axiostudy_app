@@ -34,8 +34,8 @@ class UserModel {
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'] as String,
-      email: json['email'] as String,
-      name: json['name'] as String,
+      email: json['email'] as String? ?? '',
+      name: json['name'] as String? ?? 'User',
       grade: json['grade'] as String?,
       subscriptionTier: _parseTier(json['subscription_tier'] as String?),
       subscriptionExpiry: json['subscription_expiry'] != null

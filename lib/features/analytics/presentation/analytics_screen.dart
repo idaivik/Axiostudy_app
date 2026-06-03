@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -10,6 +8,11 @@ import '../../../core/widgets/gradient_background.dart';
 import '../../../shared/models/enums.dart';
 import '../data/analytics_providers.dart';
 import '../domain/analytics_models.dart';
+import 'widgets/radar_chart_widget.dart';
+import 'widgets/scatter_plot_widget.dart';
+import 'widgets/skill_tree_widget.dart';
+import 'widgets/area_line_chart_widget.dart';
+import '../domain/chart_data_models.dart';
 
 // AI Analytics Engine Output — Visual Dashboard (now data-driven)
 class AnalyticsScreen extends ConsumerStatefulWidget {
@@ -162,21 +165,42 @@ class _OverviewTab extends ConsumerWidget {
   }
 }
 
-// Tab 2: Topics — real weak/strong topics from providers
+// Tab 2: Topics — Radar Chart + Weak/Strong Topics + Skill Tree
 class _TopicsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final weakAsync = ref.watch(weakTopicsProvider);
     final strongAsync = ref.watch(strongTopicsProvider);
+    final radarAsync = ref.watch(radarChartDataProvider);
+    final skillTreePhysics = ref.watch(skillTreeDataProvider('physics'));
+    final skillTreeChemistry = ref.watch(skillTreeDataProvider('chemistry'));
+    final skillTreeMaths = ref.watch(skillTreeDataProvider('mathematics'));
 
     final weakTopics = weakAsync.valueOrNull ?? [];
     final strongTopics = strongAsync.valueOrNull ?? [];
+    final radarData = radarAsync.valueOrNull ?? [];
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          // ─── Radar Chart ───
+          _SectionCard(
+            title: 'Mastery Shape',
+            subtitle: radarData.isEmpty
+                ? 'Take tests to visualize your strengths'
+                : 'Your top ${radarData.length} practiced topics',
+            icon: LucideIcons.hexagon,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Center(
+                child: RadarChartWidget(data: radarData),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
           // Weak topics
           _SectionCard(
             title: 'Weak Topics',
@@ -238,9 +262,36 @@ class _TopicsTab extends ConsumerWidget {
                     }).toList(),
                   ),
           ),
+          const SizedBox(height: 14),
+
+          // ─── Skill Trees ───
+          _buildSkillTreeSection('Physics', skillTreePhysics),
+          const SizedBox(height: 14),
+          _buildSkillTreeSection('Chemistry', skillTreeChemistry),
+          const SizedBox(height: 14),
+          _buildSkillTreeSection('Mathematics', skillTreeMaths),
 
           const SizedBox(height: 80),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSkillTreeSection(String subject, AsyncValue<List<SkillTreeNode>> treeAsync) {
+    final nodes = treeAsync.valueOrNull ?? [];
+    if (nodes.isEmpty) return const SizedBox.shrink();
+
+    return _SectionCard(
+      title: '$subject Skill Tree',
+      subtitle: 'Prerequisite flow — green = mastered',
+      icon: LucideIcons.gitBranch,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: SkillTreeWidget(
+          nodes: nodes,
+          title: subject,
+          height: 320,
+        ),
       ),
     );
   }
@@ -266,14 +317,16 @@ class _TopicsTab extends ConsumerWidget {
   }
 }
 
-// Tab 3: Trends — real score history + streak data
+// Tab 3: Trends — Area Line Chart + Scatter Plot + Consistency
 class _TrendsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final historyAsync = ref.watch(scoreHistoryProvider);
+    final trendAsync = ref.watch(areaLineChartDataProvider);
+    final scatterAsync = ref.watch(scatterPlotDataProvider);
     final streakAsync = ref.watch(studyStreakProvider);
 
-    final history = historyAsync.valueOrNull ?? [];
+    final trendData = trendAsync.valueOrNull ?? [];
+    final scatterData = scatterAsync.valueOrNull ?? [];
     final streak = streakAsync.valueOrNull ?? const StudyStreak();
 
     return SingleChildScrollView(
@@ -281,104 +334,31 @@ class _TrendsTab extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Score trend chart
+          // ─── Area Line Chart ───
           _SectionCard(
             title: 'Score Trend',
-            subtitle: history.isEmpty
+            subtitle: trendData.isEmpty
                 ? 'Take tests to see your progress'
-                : 'Progress over ${history.length} tests',
+                : 'Progress over ${trendData.length} tests',
             icon: LucideIcons.trendingUp,
-            child: history.length < 2
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.greenWash,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(LucideIcons.lineChart, size: 20, color: AppColors.primary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Take at least 2 tests to see your score trend',
-                              style: AppTypography.bodyMedium.copyWith(color: AppColors.textMedium),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: SizedBox(
-                      height: 200,
-                      child: LineChart(
-                        LineChartData(
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: false,
-                            horizontalInterval: 25,
-                            getDrawingHorizontalLine: (_) => FlLine(color: AppColors.divider, strokeWidth: 0.5),
-                          ),
-                          titlesData: FlTitlesData(
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 30,
-                                interval: 25,
-                                getTitlesWidget: (v, _) => Text('${v.toInt()}', style: AppTypography.caption.copyWith(fontSize: 10)),
-                              ),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 24,
-                                getTitlesWidget: (v, _) {
-                                  final i = v.toInt();
-                                  if (i < 0 || i >= history.length) return const SizedBox.shrink();
-                                  final date = history[i].completedAt;
-                                  final label = '${date.day}/${date.month}';
-                                  return Text(label, style: AppTypography.caption.copyWith(fontSize: 9));
-                                },
-                              ),
-                            ),
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          ),
-                          borderData: FlBorderData(show: false),
-                          minY: 0, maxY: 100,
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: List.generate(
-                                history.length,
-                                (i) => FlSpot(i.toDouble(), history[i].scorePercentage.clamp(0, 100)),
-                              ),
-                              isCurved: true,
-                              color: AppColors.primary,
-                              barWidth: 3,
-                              dotData: FlDotData(
-                                show: true,
-                                getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
-                                  radius: 4, color: AppColors.primary,
-                                  strokeWidth: 2, strokeColor: AppColors.white,
-                                ),
-                              ),
-                              belowBarData: BarAreaData(
-                                show: true,
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                                  colors: [AppColors.primary.withValues(alpha: 0.15), AppColors.primary.withValues(alpha: 0.0)],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: AreaLineChartWidget(data: trendData),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // ─── Scatter Plot ───
+          _SectionCard(
+            title: 'Speed vs. Accuracy',
+            subtitle: scatterData.isEmpty
+                ? 'Complete topics to analyze your patterns'
+                : '${scatterData.length} topics analyzed',
+            icon: LucideIcons.crosshair,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: ScatterPlotWidget(data: scatterData),
+            ),
           ),
           const SizedBox(height: 14),
 

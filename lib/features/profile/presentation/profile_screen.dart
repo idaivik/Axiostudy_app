@@ -97,11 +97,7 @@ class ProfileScreen extends ConsumerWidget {
                 'Your current plan: ${user.subscriptionTier.label}\n\nSubscription management will be available at axiostudy.com in a future update.',
               ),
             ),
-            _MenuItem(
-              icon: LucideIcons.barChart3,
-              label: 'Detailed Analytics',
-              onTap: () => context.push('/analytics'),
-            ),
+
             _MenuItem(
               icon: LucideIcons.settings,
               label: 'Settings',

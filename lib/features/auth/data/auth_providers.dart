@@ -53,9 +53,20 @@ final currentUserProvider = FutureProvider<UserModel?>((ref) async {
 
   try {
     final repo = ref.watch(authRepositoryProvider);
-    return await repo.getProfile(authUser.id);
+    final profile = await repo.getProfile(authUser.id);
+    // Use auth.users email if profile doesn't have one (e.g. legacy row)
+    if (profile.email.isEmpty && authUser.email != null) {
+      return profile.copyWith(email: authUser.email!);
+    }
+    return profile;
   } catch (e) {
-    return null;
+    // Return a dummy profile with just the email so the UI doesn't crash on null
+    return UserModel(
+      id: authUser.id,
+      email: authUser.email ?? 'No email',
+      name: 'User',
+      createdAt: DateTime.now(),
+    );
   }
 });
 

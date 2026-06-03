@@ -48,10 +48,12 @@ class UpcomingTestCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Icon(LucideIcons.clock, size: 12, color: AppColors.textLight),
-                      const SizedBox(width: 4),
                       Text(
                         'In 2 days',
                         style: AppTypography.caption.copyWith(
@@ -59,9 +61,8 @@ class UpcomingTestCard extends StatelessWidget {
                           color: AppColors.textLight,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Icon(LucideIcons.fileText, size: 12, color: AppColors.textLight),
-                      const SizedBox(width: 4),
                       Text(
                         '90 questions',
                         style: AppTypography.caption.copyWith(color: AppColors.textLight),
