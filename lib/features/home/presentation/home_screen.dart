@@ -185,7 +185,6 @@ class _AIInsightStrip extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppColors.greenWash,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.greenSurface, width: 1),
       ),
       child: Row(
         children: [

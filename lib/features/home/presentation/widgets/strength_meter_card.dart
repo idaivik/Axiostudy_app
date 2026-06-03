@@ -45,12 +45,16 @@ class _StrengthMeterCardState extends ConsumerState<StrengthMeterCard>
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.divider, width: 1),
         boxShadow: [
           BoxShadow(
-            color: AppColors.slate900.withValues(alpha: 0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
+            color: AppColors.slate900.withValues(alpha: 0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: AppColors.slate900.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -85,21 +89,31 @@ class _StrengthMeterCardState extends ConsumerState<StrengthMeterCard>
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           if (subjects.isEmpty)
             _EmptyState()
           else
             ...subjects.asMap().entries.map((e) {
               final isLast = e.key == subjects.length - 1;
-              return Padding(
-                padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
-                child: _SubjectBar(
-                  subject: e.value,
-                  color: _colorFor(e.value.type),
-                  gradientColors: _gradientFor(e.value.type),
-                  animController: _controller,
-                  delay: e.key * 0.15,
-                ),
+              return Column(
+                children: [
+                  _SubjectBar(
+                    subject: e.value,
+                    color: _colorFor(e.value.type),
+                    gradientColors: _gradientFor(e.value.type),
+                    animController: _controller,
+                    delay: e.key * 0.15,
+                  ),
+                  if (!isLast)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Divider(
+                        height: 1,
+                        thickness: 0.5,
+                        color: AppColors.surfaceDark,
+                      ),
+                    ),
+                ],
               );
             }),
         ],
@@ -156,13 +170,24 @@ class _SubjectBar extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(subject.iconData as IconData, size: 16, color: color),
-            const SizedBox(width: 8),
-            Text(
-              subject.name as String,
-              style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w600, fontSize: 15),
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Icon(subject.iconData as IconData, size: 15, color: color),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                subject.name as String,
+                style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w600, fontSize: 15),
+              ),
+            ),
             AnimatedBuilder(
               animation: anim,
               builder: (context, child) => Text(
@@ -183,11 +208,11 @@ class _SubjectBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
             child: Stack(
               children: [
-                Container(height: 8, color: AppColors.surfaceDark),
+                Container(height: 7, color: AppColors.surfaceDark),
                 FractionallySizedBox(
                   widthFactor: pct * anim.value,
                   child: Container(
-                    height: 8,
+                    height: 7,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(colors: gradientColors),
                       borderRadius: BorderRadius.circular(6),
@@ -198,21 +223,25 @@ class _SubjectBar extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Row(
           children: [
-            _Pill(
-              icon: LucideIcons.trendingUp,
-              text: strongChapter,
-              color: AppColors.primary,
-              bg: AppColors.greenSurface,
+            Flexible(
+              child: _Pill(
+                icon: LucideIcons.trendingUp,
+                text: strongChapter,
+                color: AppColors.primary,
+                bg: AppColors.greenSurface,
+              ),
             ),
             const SizedBox(width: 8),
-            _Pill(
-              icon: LucideIcons.alertTriangle,
-              text: weakChapter,
-              color: AppColors.weak,
-              bg: AppColors.warningLight,
+            Flexible(
+              child: _Pill(
+                icon: LucideIcons.alertTriangle,
+                text: weakChapter,
+                color: AppColors.warning,
+                bg: AppColors.warningLight,
+              ),
             ),
           ],
         ),

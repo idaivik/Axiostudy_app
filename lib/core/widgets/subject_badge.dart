@@ -15,7 +15,7 @@ class SubjectBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
       decoration: BoxDecoration(
         color: _bgColor,
         borderRadius: BorderRadius.circular(20),
@@ -47,13 +47,13 @@ class SubjectBadge extends StatelessWidget {
   Color get _bgColor => switch (strength) {
     TopicStrength.strong => AppColors.successLight,
     TopicStrength.moderate => AppColors.warningLight,
-    TopicStrength.weak => AppColors.greenSurface,
+    TopicStrength.weak => AppColors.errorLight,
   };
 
   Color get _fgColor => switch (strength) {
     TopicStrength.strong => AppColors.success,
     TopicStrength.moderate => AppColors.warning,
-    TopicStrength.weak => AppColors.primary,
+    TopicStrength.weak => AppColors.wrong,
   };
 
   IconData get _icon => switch (strength) {

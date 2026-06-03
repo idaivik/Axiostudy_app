@@ -61,12 +61,16 @@ class _ScoreTrendsCardState extends ConsumerState<ScoreTrendsCard>
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.divider, width: 1),
           boxShadow: [
             BoxShadow(
-              color: AppColors.slate900.withValues(alpha: 0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
+              color: AppColors.slate900.withValues(alpha: 0.06),
+              blurRadius: 24,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: AppColors.slate900.withValues(alpha: 0.02),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
             ),
           ],
         ),
@@ -107,12 +111,16 @@ class _ScoreTrendsCardState extends ConsumerState<ScoreTrendsCard>
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppColors.divider, width: 1),
           boxShadow: [
             BoxShadow(
-              color: AppColors.slate900.withValues(alpha: 0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
+              color: AppColors.slate900.withValues(alpha: 0.06),
+              blurRadius: 24,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: AppColors.slate900.withValues(alpha: 0.02),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
             ),
           ],
         ),

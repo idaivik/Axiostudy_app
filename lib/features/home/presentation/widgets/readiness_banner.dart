@@ -113,9 +113,9 @@ class _ReadinessBannerState extends ConsumerState<ReadinessBanner>
                           Text(
                             'JEE Readiness Score',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.95),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
                               letterSpacing: -0.2,
                             ),
                           ),
@@ -123,7 +123,7 @@ class _ReadinessBannerState extends ConsumerState<ReadinessBanner>
                           Text(
                             '$daysRemaining days to exam  •  ${user?.testsCompleted ?? 0} tests taken',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.55),
+                              color: Colors.white.withValues(alpha: 0.65),
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),

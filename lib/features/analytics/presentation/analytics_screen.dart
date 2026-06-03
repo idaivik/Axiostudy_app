@@ -42,28 +42,30 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
         automaticallyImplyLeading: false,
         title: const Text('Analytics'),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
+          preferredSize: const Size.fromHeight(52),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Container(
-              height: 38,
+              height: 40,
+              padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
+                color: AppColors.surfaceDark,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: TabBar(
                 controller: _tabController,
                 indicator: BoxDecoration(
                   color: AppColors.white,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                   boxShadow: [
-                    BoxShadow(color: AppColors.slate900.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 2)),
+                    BoxShadow(color: AppColors.slate900.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2)),
+                    BoxShadow(color: AppColors.slate900.withValues(alpha: 0.04), blurRadius: 2, offset: const Offset(0, 1)),
                   ],
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
                 labelColor: AppColors.textDark,
-                unselectedLabelColor: AppColors.textLight,
+                unselectedLabelColor: AppColors.textMedium,
                 labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 unselectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                 tabs: const [
@@ -419,9 +421,9 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.divider, width: 1),
         boxShadow: [
-          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.04), blurRadius: 16, offset: const Offset(0, 4)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.06), blurRadius: 24, offset: const Offset(0, 6)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 1)),
         ],
       ),
       child: Column(
@@ -470,8 +472,10 @@ class _MetricCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.divider, width: 1),
-        boxShadow: [BoxShadow(color: AppColors.slate900.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 3))],
+        boxShadow: [
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 4)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 1)),
+        ],
       ),
       child: Column(
         children: [

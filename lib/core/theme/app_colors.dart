@@ -21,21 +21,21 @@ class AppColors {
   static const Color correct = Color(0xFF16A34A);
   static const Color inactive = Color(0xFFF1F5F9);
 
-  // ─── Text ───
+  // ─── Text (WCAG-compliant contrast) ───
   static const Color textDark = Color(0xFF0F172A);      // Slate 900
   static const Color textMedium = Color(0xFF475569);    // Slate 600
-  static const Color textLight = Color(0xFF94A3B8);     // Slate 400
+  static const Color textLight = Color(0xFF64748B);     // Slate 500 (darkened for WCAG)
   static const Color textOnPrimary = Color(0xFFFFFFFF);
   static const Color textOnDark = Color(0xFFFFFFFF);
 
-  // ─── Surfaces ───
-  static const Color background = Color(0xFFFFFFFF);
+  // ─── Surfaces (iOS-inspired background contrast) ───
+  static const Color background = Color(0xFFF2F2F7);     // iOS system background
   static const Color backgroundWash = Color(0xFFF0FDF4);
-  static const Color cardBackground = Color(0xFFFFFFFF);
-  static const Color surfaceLight = Color(0xFFF8FAFC);  // Slate 50
-  static const Color surfaceDark = Color(0xFFF1F5F9);   // Slate 100
-  static const Color divider = Color(0xFFE2E8F0);       // Slate 200
-  static const Color darkCard = Color(0xFF0F172A);      // Slate 900 card
+  static const Color cardBackground = Color(0xFFFFFFFF);  // Pure white cards
+  static const Color surfaceLight = Color(0xFFF2F2F7);   // Matches system bg
+  static const Color surfaceDark = Color(0xFFE5E5EA);    // iOS system gray 5
+  static const Color divider = Color(0xFFE5E5EA);        // Subtle divider
+  static const Color darkCard = Color(0xFF0F172A);       // Slate 900 card
 
   // ─── Subject Colors ───
   static const Color physics = Color(0xFF6366F1);       // Indigo
@@ -46,9 +46,9 @@ class AppColors {
   static const Color primaryLight = greenLight;
   static const Color primarySurface = greenSurface;
   static const Color primaryDark = greenDarkAccent;
-  static const Color success = primary;
-  static const Color successLight = greenSurface;
-  static const Color warning = weak;
+  static const Color success = Color(0xFF22C55E);        // Vibrant green-500
+  static const Color successLight = Color(0xFFDCFCE7);   // Green-100
+  static const Color warning = Color(0xFFF97316);         // Vibrant orange-500
   static const Color warningLight = Color(0xFFFFF7ED);
   static const Color error = wrong;
   static const Color errorLight = Color(0xFFFEF2F2);
@@ -63,7 +63,7 @@ class AppColors {
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF16A34A), Color(0xFF004225)],
+    colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
   );
 
   static const LinearGradient heroGradient = LinearGradient(

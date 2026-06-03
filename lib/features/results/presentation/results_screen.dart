@@ -341,9 +341,9 @@ class _WeaknessAnalysisCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.divider),
         boxShadow: [
-          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.04), blurRadius: 16, offset: const Offset(0, 4)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.06), blurRadius: 24, offset: const Offset(0, 6)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 1)),
         ],
       ),
       child: Column(
@@ -406,9 +406,9 @@ class _StrengthAreasCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.divider),
         boxShadow: [
-          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.04), blurRadius: 16, offset: const Offset(0, 4)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.06), blurRadius: 24, offset: const Offset(0, 6)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 1)),
         ],
       ),
       child: Column(
@@ -463,9 +463,9 @@ class _RecommendedPracticeCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.divider),
         boxShadow: [
-          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.04), blurRadius: 16, offset: const Offset(0, 4)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.06), blurRadius: 24, offset: const Offset(0, 6)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 1)),
         ],
       ),
       child: Column(
@@ -537,7 +537,6 @@ class _RecommendCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider, width: 0.5),
         ),
         child: Row(
           children: [

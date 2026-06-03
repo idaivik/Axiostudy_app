@@ -189,7 +189,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     decoration: BoxDecoration(
                       color: AppColors.white,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: AppColors.divider, width: 1),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.slate900.withValues(alpha: 0.06),
@@ -333,7 +332,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     decoration: BoxDecoration(
                       color: AppColors.surfaceLight,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.divider),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,

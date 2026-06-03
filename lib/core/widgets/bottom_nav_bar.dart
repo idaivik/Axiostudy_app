@@ -25,14 +25,16 @@ class BottomNavBar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.divider, width: 0.5),
-        ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.slate900.withValues(alpha: 0.06),
+            color: AppColors.slate900.withValues(alpha: 0.08),
             blurRadius: 24,
-            offset: const Offset(0, -8),
+            offset: const Offset(0, -4),
+          ),
+          BoxShadow(
+            color: AppColors.slate900.withValues(alpha: 0.03),
+            blurRadius: 2,
+            offset: const Offset(0, -1),
           ),
         ],
       ),
@@ -135,8 +137,8 @@ class _NavTileState extends State<_NavTile> with SingleTickerProviderStateMixin 
                 child: Icon(
                   widget.item.icon,
                   key: ValueKey(widget.isActive),
-                  size: 20,
-                  color: widget.isActive ? AppColors.primary : AppColors.textLight,
+                  size: 22,
+                  color: widget.isActive ? AppColors.primary : AppColors.textMedium,
                 ),
               ),
               AnimatedSize(

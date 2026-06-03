@@ -10,7 +10,7 @@ class AppTypography {
   static TextStyle get heading1 => TextStyle(
         fontFamily: _fontFamily,
         fontSize: 28,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         color: AppColors.textDark,
         height: 1.2,
         letterSpacing: -0.8,
@@ -19,7 +19,7 @@ class AppTypography {
   static TextStyle get heading2 => TextStyle(
         fontFamily: _fontFamily,
         fontSize: 22,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         color: AppColors.textDark,
         height: 1.25,
         letterSpacing: -0.5,
@@ -53,7 +53,7 @@ class AppTypography {
   static TextStyle get caption => TextStyle(
         fontFamily: _fontFamily,
         fontSize: 12,
-        fontWeight: FontWeight.w400,
+        fontWeight: FontWeight.w500,
         color: AppColors.textLight,
         height: 1.4,
       );

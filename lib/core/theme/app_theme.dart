@@ -55,11 +55,11 @@ class AppTheme {
   static TextTheme get _textTheme {
     return GoogleFonts.interTextTheme().copyWith(
       headlineLarge: GoogleFonts.inter(
-        fontSize: 28, fontWeight: FontWeight.w700,
+        fontSize: 28, fontWeight: FontWeight.w800,
         color: AppColors.textDark, letterSpacing: -0.8,
       ),
       headlineMedium: GoogleFonts.inter(
-        fontSize: 22, fontWeight: FontWeight.w700,
+        fontSize: 22, fontWeight: FontWeight.w800,
         color: AppColors.textDark, letterSpacing: -0.5,
       ),
       headlineSmall: GoogleFonts.inter(
@@ -75,7 +75,7 @@ class AppTheme {
         color: AppColors.textMedium, height: 1.5,
       ),
       bodySmall: GoogleFonts.inter(
-        fontSize: 12, fontWeight: FontWeight.w400,
+        fontSize: 12, fontWeight: FontWeight.w500,
         color: AppColors.textLight, height: 1.4,
       ),
       labelLarge: GoogleFonts.inter(
