@@ -62,11 +62,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         .animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
 
     Future.delayed(const Duration(milliseconds: 100), () {
-      _logoController.forward();
+      if (mounted) _logoController.forward();
     });
     Future.delayed(const Duration(milliseconds: 350), () {
-      _fadeController.forward();
-      _slideController.forward();
+      if (mounted) {
+        _fadeController.forward();
+        _slideController.forward();
+      }
     });
   }
 
