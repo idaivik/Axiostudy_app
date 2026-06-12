@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../subjects/data/subjects_providers.dart';
+import '../../../subjects/domain/subject_models.dart';
 import '../../../../shared/models/enums.dart';
 
 class StrengthMeterCard extends ConsumerStatefulWidget {
@@ -16,6 +17,8 @@ class StrengthMeterCard extends ConsumerStatefulWidget {
 class _StrengthMeterCardState extends ConsumerState<StrengthMeterCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  bool _showAll = false;
+  static const int _initialCount = 3;
 
   @override
   void initState() {
@@ -35,9 +38,28 @@ class _StrengthMeterCardState extends ConsumerState<StrengthMeterCard>
     super.dispose();
   }
 
+  /// Deduplicate subjects by SubjectType, keeping the first occurrence.
+  List<Subject> _deduplicateSubjects(List<Subject> subjects) {
+    final seen = <SubjectType>{};
+    final result = <Subject>[];
+    for (final s in subjects) {
+      if (!seen.contains(s.type)) {
+        seen.add(s.type);
+        result.add(s);
+      }
+    }
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final subjects = ref.watch(subjectsProvider).valueOrNull ?? [];
+    final rawSubjects = ref.watch(subjectsProvider).valueOrNull ?? [];
+    final subjects = _deduplicateSubjects(rawSubjects);
+
+    final displaySubjects = _showAll
+        ? subjects
+        : subjects.take(_initialCount).toList();
+    final hasMore = subjects.length > _initialCount;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -92,9 +114,9 @@ class _StrengthMeterCardState extends ConsumerState<StrengthMeterCard>
           const SizedBox(height: 16),
           if (subjects.isEmpty)
             _EmptyState()
-          else
-            ...subjects.asMap().entries.map((e) {
-              final isLast = e.key == subjects.length - 1;
+          else ...[
+            ...displaySubjects.asMap().entries.map((e) {
+              final isLast = e.key == displaySubjects.length - 1;
               return Column(
                 children: [
                   _SubjectBar(
@@ -116,6 +138,48 @@ class _StrengthMeterCardState extends ConsumerState<StrengthMeterCard>
                 ],
               );
             }),
+            // Show more / show less toggle
+            if (hasMore)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: GestureDetector(
+                  onTap: () => setState(() => _showAll = !_showAll),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.greenSurface.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _showAll
+                              ? 'Show less'
+                              : 'Show ${subjects.length - _initialCount} more',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        AnimatedRotation(
+                          turns: _showAll ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                          child: Icon(
+                            LucideIcons.chevronDown,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -135,29 +199,31 @@ class _StrengthMeterCardState extends ConsumerState<StrengthMeterCard>
 }
 
 class _SubjectBar extends StatelessWidget {
-  final dynamic subject;
+  final Subject subject;
   final Color color;
   final List<Color> gradientColors;
   final AnimationController animController;
   final double delay;
 
   const _SubjectBar({
-    required this.subject, required this.color,
-    required this.gradientColors, required this.animController,
+    required this.subject,
+    required this.color,
+    required this.gradientColors,
+    required this.animController,
     required this.delay,
   });
 
   @override
   Widget build(BuildContext context) {
-    final pct = subject.completionPercentage as double;
-    final chapters = List<dynamic>.from(subject.chapters as List);
+    final pct = subject.completionPercentage;
+    final chapters = subject.chapters;
     final strongChapter = chapters.isNotEmpty
         ? chapters.reduce((a, b) =>
-            (a.completionPercentage as double) >= (b.completionPercentage as double) ? a : b).name as String
+            a.completionPercentage >= b.completionPercentage ? a : b).name
         : '—';
     final weakChapter = chapters.isNotEmpty
         ? chapters.reduce((a, b) =>
-            (a.completionPercentage as double) <= (b.completionPercentage as double) ? a : b).name as String
+            a.completionPercentage <= b.completionPercentage ? a : b).name
         : '—';
 
     final anim = CurvedAnimation(
@@ -178,14 +244,16 @@ class _SubjectBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
-                child: Icon(subject.iconData as IconData, size: 15, color: color),
+                child: Icon(subject.iconData, size: 15, color: color),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                subject.name as String,
+                subject.name,
                 style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.w600, fontSize: 15),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             AnimatedBuilder(
@@ -270,15 +338,17 @@ class _Pill extends StatelessWidget {
         children: [
           Icon(icon, size: 11, color: color),
           const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: color,
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
