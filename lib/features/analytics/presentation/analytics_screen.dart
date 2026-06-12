@@ -5,8 +5,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/progress_circle.dart';
 import '../../../core/widgets/gradient_background.dart';
+import '../../../core/router/swipe_nav_provider.dart';
 import '../../../shared/models/enums.dart';
 import '../data/analytics_providers.dart';
+import '../../auth/data/auth_providers.dart';
 import '../domain/analytics_models.dart';
 import 'widgets/radar_chart_widget.dart';
 import 'widgets/scatter_plot_widget.dart';
@@ -25,21 +27,44 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _ignoreTabListener = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_onTabChanged);
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
 
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging || _ignoreTabListener) return;
+    // User tapped a tab manually — update global index
+    // Analytics tabs map to global indices 3, 4, 5
+    ref.read(swipeNavProvider.notifier).setGlobalIndex(3 + _tabController.index);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Listen to swipe nav state and sync tab controller
+    ref.listen<SwipeNavState>(swipeNavProvider, (prev, next) {
+      if (next.navIndex != 2) return; // Only care about Analytics section
+      final targetTab = next.analyticsTabIndex;
+      if (_tabController.index != targetTab) {
+        _ignoreTabListener = true;
+        _tabController.animateTo(targetTab);
+        Future.delayed(const Duration(milliseconds: 350), () {
+          _ignoreTabListener = false;
+        });
+      }
+    });
+
     return GradientBackground(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -83,6 +108,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
       ),
       child: TabBarView(
         controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(),
         children: [
           _OverviewTab(),
           _TopicsTab(),
@@ -107,9 +133,22 @@ class _OverviewTab extends ConsumerWidget {
     final avgScore = (stats['avg_score'] as num?)?.toDouble() ?? 0;
     final streak = stats['current_streak'] ?? 0;
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(16),
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async {
+        ref.invalidate(userStatsProvider);
+        ref.invalidate(subjectMasteryProvider);
+        ref.invalidate(topicPerformanceProvider);
+        ref.invalidate(currentUserProvider);
+        ref.invalidate(scoreHistoryProvider);
+        ref.invalidate(studyStreakProvider);
+        await ref.read(userStatsProvider.future);
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -161,6 +200,7 @@ class _OverviewTab extends ConsumerWidget {
           const SizedBox(height: 80),
         ],
       ),
+      ),
     );
   }
 }
@@ -180,9 +220,23 @@ class _TopicsTab extends ConsumerWidget {
     final strongTopics = strongAsync.valueOrNull ?? [];
     final radarData = radarAsync.valueOrNull ?? [];
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(16),
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async {
+        ref.invalidate(topicPerformanceProvider);
+        ref.invalidate(weakTopicsProvider);
+        ref.invalidate(strongTopicsProvider);
+        ref.invalidate(radarChartDataProvider);
+        ref.invalidate(skillTreeDataProvider('physics'));
+        ref.invalidate(skillTreeDataProvider('chemistry'));
+        ref.invalidate(skillTreeDataProvider('mathematics'));
+        await ref.read(topicPerformanceProvider.future);
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           // ─── Radar Chart ───
@@ -274,6 +328,7 @@ class _TopicsTab extends ConsumerWidget {
           const SizedBox(height: 80),
         ],
       ),
+      ),
     );
   }
 
@@ -329,9 +384,21 @@ class _TrendsTab extends ConsumerWidget {
     final scatterData = scatterAsync.valueOrNull ?? [];
     final streak = streakAsync.valueOrNull ?? const StudyStreak();
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(16),
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async {
+        ref.invalidate(scoreHistoryProvider);
+        ref.invalidate(areaLineChartDataProvider);
+        ref.invalidate(scatterPlotDataProvider);
+        ref.invalidate(studyStreakProvider);
+        ref.invalidate(topicPerformanceProvider);
+        await ref.read(scoreHistoryProvider.future);
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           // ─── Area Line Chart ───
@@ -375,6 +442,7 @@ class _TrendsTab extends ConsumerWidget {
 
           const SizedBox(height: 80),
         ],
+      ),
       ),
     );
   }

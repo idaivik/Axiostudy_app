@@ -15,8 +15,8 @@ class BottomNavBar extends StatelessWidget {
 
   static const _items = [
     _NavItem(icon: LucideIcons.layoutDashboard, label: 'Home'),
-    _NavItem(icon: LucideIcons.bookOpen, label: 'Practice'),
-    _NavItem(icon: LucideIcons.brain, label: 'Analysis'),
+    _NavItem(icon: LucideIcons.pencil, label: 'Practice'),
+    _NavItem(icon: LucideIcons.searchCheck, label: 'Analysis'),
     _NavItem(icon: LucideIcons.user, label: 'Profile'),
   ];
 
@@ -41,7 +41,7 @@ class BottomNavBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(_items.length, (i) {
@@ -119,17 +119,14 @@ class _NavTileState extends State<_NavTile> with SingleTickerProviderStateMixin 
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.isActive ? 18 : 12,
-            vertical: 8,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
             color: widget.isActive
                 ? AppColors.primary.withValues(alpha: 0.1)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Row(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               AnimatedSwitcher(
@@ -141,23 +138,15 @@ class _NavTileState extends State<_NavTile> with SingleTickerProviderStateMixin 
                   color: widget.isActive ? AppColors.primary : AppColors.textMedium,
                 ),
               ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                child: widget.isActive
-                    ? Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: Text(
-                          widget.item.label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+              const SizedBox(height: 3),
+              Text(
+                widget.item.label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: widget.isActive ? FontWeight.w600 : FontWeight.w500,
+                  color: widget.isActive ? AppColors.primary : AppColors.textMedium,
+                  letterSpacing: -0.1,
+                ),
               ),
             ],
           ),

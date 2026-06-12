@@ -7,35 +7,60 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/progress_bar.dart';
 import '../../../core/widgets/subject_badge.dart';
 import '../../../core/widgets/gradient_background.dart';
+import '../../../core/router/swipe_nav_provider.dart';
 import '../../../shared/models/enums.dart';
 import '../../subjects/data/subjects_providers.dart';
 import '../../auth/data/auth_providers.dart';
+import '../../analytics/data/analytics_providers.dart';
 
-class PracticeScreen extends StatefulWidget {
+class PracticeScreen extends ConsumerStatefulWidget {
   const PracticeScreen({super.key});
 
   @override
-  State<PracticeScreen> createState() => _PracticeScreenState();
+  ConsumerState<PracticeScreen> createState() => _PracticeScreenState();
 }
 
-class _PracticeScreenState extends State<PracticeScreen>
+class _PracticeScreenState extends ConsumerState<PracticeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _ignoreTabListener = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_onTabChanged);
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
 
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging || _ignoreTabListener) return;
+    // User tapped a tab manually — update global index
+    // Practice tabs map to global indices 1 and 2
+    ref.read(swipeNavProvider.notifier).setGlobalIndex(1 + _tabController.index);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Listen to swipe nav state and sync tab controller
+    ref.listen<SwipeNavState>(swipeNavProvider, (prev, next) {
+      if (next.navIndex != 1) return; // Only care about Practice section
+      final targetTab = next.practiceTabIndex;
+      if (_tabController.index != targetTab) {
+        _ignoreTabListener = true;
+        _tabController.animateTo(targetTab);
+        Future.delayed(const Duration(milliseconds: 350), () {
+          _ignoreTabListener = false;
+        });
+      }
+    });
+
     return GradientBackground(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -86,6 +111,7 @@ class _PracticeScreenState extends State<PracticeScreen>
       ),
       child: TabBarView(
         controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(),
         children: const [
           _TopicsTab(),
           _TestsTab(),
@@ -103,8 +129,17 @@ class _TopicsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final subjectsAsync = ref.watch(subjectsProvider);
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async {
+        ref.invalidate(subjectsProvider);
+        ref.invalidate(currentUserProvider);
+        await ref.read(subjectsProvider.future);
+      },
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
       slivers: [
         // Quick practice section
         SliverToBoxAdapter(
@@ -209,8 +244,9 @@ class _TopicsTab extends ConsumerWidget {
             ),
           ),
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 100)),
-      ],
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
+      ),
     );
   }
 
@@ -320,8 +356,17 @@ class _TestsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider).valueOrNull;
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async {
+        ref.invalidate(currentUserProvider);
+        ref.invalidate(topicPerformanceProvider);
+        await ref.read(currentUserProvider.future);
+      },
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
@@ -422,6 +467,7 @@ class _TestsTab extends ConsumerWidget {
           ),
         ),
       ],
+      ),
     );
   }
 }

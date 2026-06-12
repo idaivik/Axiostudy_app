@@ -14,6 +14,7 @@ import '../../features/onboarding/presentation/test_selection_screen.dart';
 import '../../features/practice/presentation/practice_screen.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/gradient_background.dart';
+import 'swipe_nav_provider.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final isLoggedIn = ref.watch(isLoggedInProvider);
@@ -80,12 +81,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: '/subjects/:subjectId',
-        builder: (context, state) => ChapterDetailScreen(
-          subjectId: state.pathParameters['subjectId']!,
-        ),
-      ),
-      GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
       ),
@@ -97,38 +92,140 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// Shell scaffold with bottom nav and gradient background.
-class _ShellScaffold extends StatefulWidget {
+/// Shell scaffold with bottom nav, gradient background, and swipe navigation.
+class _ShellScaffold extends ConsumerStatefulWidget {
   final Widget child;
   const _ShellScaffold({required this.child});
 
   @override
-  State<_ShellScaffold> createState() => _ShellScaffoldState();
+  ConsumerState<_ShellScaffold> createState() => _ShellScaffoldState();
 }
 
-class _ShellScaffoldState extends State<_ShellScaffold> {
-  int _currentIndex = 0;
-
+class _ShellScaffoldState extends ConsumerState<_ShellScaffold> {
   static const _routes = ['/', '/practice', '/analytics', '/profile'];
 
   @override
   Widget build(BuildContext context) {
-    // Sync index from current location
+    final swipeState = ref.watch(swipeNavProvider);
+
+    // Sync index from current location when navigated by means other than
+    // the swipe/nav-tap handlers (e.g. deep links, go_router redirects).
     final location = GoRouterState.of(context).matchedLocation;
     final idx = _routes.indexOf(location);
-    if (idx >= 0 && idx != _currentIndex) {
-      _currentIndex = idx;
+    if (idx >= 0 && idx != swipeState.navIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(swipeNavProvider.notifier).setGlobalIndex(
+          SwipeNavState.globalIndexForNav(idx),
+        );
+      });
     }
 
-    return GradientBackground(
-      bottomNavigationBar: BottomNavBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-          context.go(_routes[index]);
-        },
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity < -300) {
+          _navigateForward();
+        } else if (velocity > 300) {
+          _navigateBackward();
+        }
+      },
+      child: GradientBackground(
+        bottomNavigationBar: BottomNavBar(
+          currentIndex: swipeState.navIndex,
+          onTap: (index) {
+            ref.read(swipeNavProvider.notifier).onNavTap(index);
+            context.go(_routes[index]);
+          },
+        ),
+        child: _SlidePageSwitcher(
+          routeKey: location,
+          isForward: swipeState.isForward,
+          child: widget.child,
+        ),
       ),
-      child: widget.child,
     );
+  }
+
+  void _navigateForward() {
+    final current = ref.read(swipeNavProvider);
+    if (current.globalIndex >= SwipeNavState.totalPages - 1) return;
+    ref.read(swipeNavProvider.notifier).swipeLeft();
+    final newRoute = _routes[ref.read(swipeNavProvider).navIndex];
+    if (newRoute != GoRouterState.of(context).matchedLocation) {
+      context.go(newRoute);
+    }
+  }
+
+  void _navigateBackward() {
+    final current = ref.read(swipeNavProvider);
+    if (current.globalIndex <= 0) return;
+    ref.read(swipeNavProvider.notifier).swipeRight();
+    final newRoute = _routes[ref.read(swipeNavProvider).navIndex];
+    if (newRoute != GoRouterState.of(context).matchedLocation) {
+      context.go(newRoute);
+    }
+  }
+}
+
+/// Slides the incoming page in whenever [routeKey] changes.
+/// The new page enters from the right (forward) or left (backward).
+/// No previous-child snapshot is kept — avoids Flutter's forgotten-element
+/// assertion that fires when a widget is moved between tree positions.
+class _SlidePageSwitcher extends StatefulWidget {
+  final Widget child;
+  final String routeKey;
+  final bool isForward;
+
+  const _SlidePageSwitcher({
+    required this.child,
+    required this.routeKey,
+    required this.isForward,
+  });
+
+  @override
+  State<_SlidePageSwitcher> createState() => _SlidePageSwitcherState();
+}
+
+class _SlidePageSwitcherState extends State<_SlidePageSwitcher>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      value: 1.0, // start complete — no animation on first render
+    );
+    _buildAnim(widget.isForward);
+  }
+
+  void _buildAnim(bool isForward) {
+    _slideAnim = Tween<Offset>(
+      begin: isForward ? const Offset(1.0, 0) : const Offset(-1.0, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+  }
+
+  @override
+  void didUpdateWidget(_SlidePageSwitcher old) {
+    super.didUpdateWidget(old);
+    if (old.routeKey != widget.routeKey) {
+      _buildAnim(widget.isForward);
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SlideTransition(position: _slideAnim, child: widget.child);
   }
 }

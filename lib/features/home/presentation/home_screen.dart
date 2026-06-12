@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../features/auth/data/auth_providers.dart';
 import '../../../features/onboarding/presentation/diagnostic_modal.dart';
 import '../../analytics/data/analytics_providers.dart';
+import 'widgets/diagnostic_prompt_card.dart';
+import 'widgets/notifications_sheet.dart';
 import 'widgets/readiness_banner.dart';
 import 'widgets/todays_plan_card.dart';
 import 'widgets/strength_meter_card.dart';
@@ -22,7 +25,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin {
-  bool _hasShownDiagnosticModal = false;
+  static const _kDiagnosticModalShown = 'diagnostic_modal_shown';
   late AnimationController _headerController;
   late Animation<double> _headerFade;
   late Animation<Offset> _headerSlide;
@@ -51,12 +54,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.dispose();
   }
 
-  void _checkDiagnostic() {
+  Future<void> _checkDiagnostic() async {
     final hasTaken = ref.read(hasTakenDiagnosticProvider);
-    if (!hasTaken && !_hasShownDiagnosticModal) {
-      _hasShownDiagnosticModal = true;
-      showDiagnosticModal(context);
-    }
+    if (hasTaken) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyShown = prefs.getBool(_kDiagnosticModalShown) ?? false;
+    if (alreadyShown) return;
+
+    await prefs.setBool(_kDiagnosticModalShown, true);
+    if (mounted) showDiagnosticModal(context);
   }
 
   @override
@@ -66,105 +73,175 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final firstName = user?.name.split(' ').first ?? 'Student';
 
     return SafeArea(
-      child: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: FadeTransition(
-              opacity: _headerFade,
-              child: SlideTransition(
-                position: _headerSlide,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _greeting(firstName),
-                              style: AppTypography.heading1,
+      child: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: () async {
+          // Invalidate all home-relevant providers to force full re-fetch
+          ref.invalidate(currentUserProvider);
+          ref.invalidate(topicPerformanceProvider);
+          ref.invalidate(weakTopicsProvider);
+          ref.invalidate(scoreHistoryProvider);
+          ref.invalidate(studyStreakProvider);
+
+          // Wait for user data to reload so the UI refreshes visibly
+          await ref.read(currentUserProvider.future);
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            SliverToBoxAdapter(
+              child: FadeTransition(
+                opacity: _headerFade,
+                child: SlideTransition(
+                  position: _headerSlide,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
+                    child: Row(
+                      children: [
+                        // Profile avatar (circle, left)
+                        GestureDetector(
+                          onTap: () => context.go('/profile'),
+                          child: Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              gradient: AppColors.heroGradient,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(alpha: 0.25),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              "Here's your AI study plan for today",
-                              style: AppTypography.bodyMedium,
+                            child: Center(
+                              child: Text(
+                                (user?.name.isNotEmpty == true)
+                                    ? user!.name[0].toUpperCase()
+                                    : 'S',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: () => context.go('/profile'),
-                        child: Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            gradient: AppColors.heroGradient,
-                            borderRadius: BorderRadius.circular(15),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.25),
-                                blurRadius: 14,
-                                offset: const Offset(0, 4),
+                        const SizedBox(width: 14),
+                        // Greeting text
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Hello $firstName,',
+                                style: AppTypography.heading1.copyWith(
+                                  fontSize: 22,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _greeting(),
+                                style: AppTypography.bodyMedium.copyWith(
+                                  fontWeight: FontWeight.w400,
+                                  color: AppColors.textLight,
+                                  fontSize: 14,
+                                ),
                               ),
                             ],
                           ),
-                          child: Center(
-                            child: Text(
-                              (user?.name.isNotEmpty == true)
-                                  ? user!.name[0].toUpperCase()
-                                  : 'S',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 19,
-                                fontWeight: FontWeight.w700,
+                        ),
+                        const SizedBox(width: 12),
+                        // Notification bell (right)
+                        GestureDetector(
+                          onTap: () => showNotificationsSheet(context),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceLight,
+                                  borderRadius: BorderRadius.circular(13),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    LucideIcons.bell,
+                                    size: 22,
+                                    color: AppColors.textMedium,
+                                  ),
+                                ),
                               ),
-                            ),
+                              // Red badge dot when diagnostic is pending
+                              if (!ref.watch(hasTakenDiagnosticProvider))
+                                Positioned(
+                                  top: -2,
+                                  right: -2,
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.wrong,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: AppColors.cardBackground,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
 
-          // AI insight strip
-          SliverToBoxAdapter(
-            child: FadeTransition(
-              opacity: _headerFade,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: _AIInsightStrip(),
+            // AI insight strip
+            SliverToBoxAdapter(
+              child: FadeTransition(
+                opacity: _headerFade,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: _AIInsightStrip(),
+                ),
               ),
             ),
-          ),
 
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                const ReadinessBanner(),
-                const TodaysPlanCard(),
-                const StrengthMeterCard(),
-                const ScoreTrendsCard(),
-                const UpcomingTestCard(),
-                const SizedBox(height: 110),
-              ]),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  const DiagnosticPromptCard(),
+                  const ReadinessBanner(),
+                  const TodaysPlanCard(),
+                  const StrengthMeterCard(),
+                  const ScoreTrendsCard(),
+                  const UpcomingTestCard(),
+                  const SizedBox(height: 110),
+                ]),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  String _greeting(String name) {
+  String _greeting() {
     final h = DateTime.now().hour;
-    final g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-    return '$g, $name';
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
   }
 }
 
