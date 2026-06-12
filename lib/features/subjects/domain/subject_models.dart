@@ -40,6 +40,8 @@ class Subject {
         return SubjectType.chemistry;
       case 'mathematics':
         return SubjectType.mathematics;
+      case 'biology':
+        return SubjectType.biology;
       default:
         return SubjectType.physics;
     }

@@ -41,6 +41,7 @@ class AppColors {
   static const Color physics = Color(0xFF6366F1);       // Indigo
   static const Color chemistry = Color(0xFF0EA5E9);     // Sky
   static const Color mathematics = Color(0xFFF59E0B);   // Amber
+  static const Color biology = Color(0xFFEC4899);       // Pink
 
   // ─── Primary aliases ───
   static const Color primaryLight = greenLight;
@@ -88,5 +89,11 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+  );
+
+  static const LinearGradient biologyGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFF472B6), Color(0xFFEC4899)],
   );
 }

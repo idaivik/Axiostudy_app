@@ -60,12 +60,14 @@ class SubjectsRepository {
 
       if (progress == null && topics.isNotEmpty) {
         chapterCompletion = topics.map((t) => t.completionPercentage).reduce((a, b) => a + b) / topics.length;
-        final avgCompletion = chapterCompletion;
-        chapterStrength = avgCompletion >= 0.7
-            ? TopicStrength.strong
-            : avgCompletion >= 0.4
-                ? TopicStrength.moderate
-                : TopicStrength.weak;
+        // Only classify strength when there is real progress; 0% means not yet attempted
+        if (chapterCompletion > 0) {
+          chapterStrength = chapterCompletion >= 0.7
+              ? TopicStrength.strong
+              : chapterCompletion >= 0.4
+                  ? TopicStrength.moderate
+                  : TopicStrength.weak;
+        }
       }
 
       final chapter = Chapter.fromJson(

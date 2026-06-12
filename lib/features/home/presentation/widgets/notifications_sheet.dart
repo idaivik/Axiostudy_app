@@ -7,74 +7,92 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../auth/data/auth_providers.dart';
 
 Future<void> showNotificationsSheet(BuildContext context) {
-  return showModalBottomSheet(
+  return showGeneralDialog(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) => const _NotificationsSheetContent(),
+    barrierDismissible: true,
+    barrierLabel: 'Dismiss notifications',
+    barrierColor: Colors.black.withValues(alpha: 0.35),
+    transitionDuration: const Duration(milliseconds: 260),
+    pageBuilder: (context, a, b) => const _NotificationsPanel(),
+    transitionBuilder: (context, animation, _, child) {
+      final slide = Tween<Offset>(
+        begin: const Offset(1.0, 0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+      return SlideTransition(position: slide, child: child);
+    },
   );
 }
 
-class _NotificationsSheetContent extends ConsumerWidget {
-  const _NotificationsSheetContent();
+class _NotificationsPanel extends ConsumerWidget {
+  const _NotificationsPanel();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hasTakenDiagnostic = ref.watch(hasTakenDiagnosticProvider);
+    final width = MediaQuery.of(context).size.width;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Handle
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: width * 0.84,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              bottomLeft: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 32,
+                offset: const Offset(-6, 0),
               ),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 8, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text('Notifications', style: AppTypography.heading2),
+                      ),
+                      IconButton(
+                        icon: const Icon(LucideIcons.x, size: 20),
+                        color: AppColors.textMedium,
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: AppColors.divider),
+                if (!hasTakenDiagnostic)
+                  _NotificationTile(
+                    icon: LucideIcons.clipboardCheck,
+                    iconColor: AppColors.primary,
+                    iconBackground: AppColors.greenSurface,
+                    title: 'Diagnostic Test Pending',
+                    subtitle:
+                        'Complete it to unlock personalized AI study insights.',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/test-selection');
+                    },
+                  )
+                else
+                  const _EmptyState(),
+              ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Text('Notifications', style: AppTypography.heading2),
-          ),
-          const Divider(height: 1, color: AppColors.divider),
-          if (!hasTakenDiagnostic) ...[
-            _NotificationTile(
-              icon: LucideIcons.clipboardCheck,
-              iconColor: AppColors.primary,
-              iconBackground: AppColors.greenSurface,
-              title: 'Diagnostic Test Pending',
-              subtitle: 'Complete it to unlock personalized AI study insights.',
-              onTap: () {
-                Navigator.of(context).pop();
-                context.push('/test-selection');
-              },
-            ),
-          ] else ...[
-            _EmptyState(),
-          ],
-          const SizedBox(height: 24),
-        ],
+        ),
       ),
     );
   }
@@ -144,10 +162,12 @@ class _NotificationTile extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
+      padding: const EdgeInsets.symmetric(vertical: 40),
       child: Center(
         child: Column(
           children: [

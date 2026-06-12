@@ -189,12 +189,14 @@ class _StrengthMeterCardState extends ConsumerState<StrengthMeterCard>
     SubjectType.physics => AppColors.physics,
     SubjectType.chemistry => AppColors.chemistry,
     SubjectType.mathematics => AppColors.mathematics,
+    SubjectType.biology => AppColors.biology,
   };
 
   List<Color> _gradientFor(SubjectType t) => switch (t) {
     SubjectType.physics => [const Color(0xFF818CF8), AppColors.physics],
     SubjectType.chemistry => [const Color(0xFF38BDF8), AppColors.chemistry],
     SubjectType.mathematics => [const Color(0xFFFBBF24), AppColors.mathematics],
+    SubjectType.biology => [const Color(0xFFF472B6), AppColors.biology],
   };
 }
 
@@ -217,11 +219,12 @@ class _SubjectBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final pct = subject.completionPercentage;
     final chapters = subject.chapters;
-    final strongChapter = chapters.isNotEmpty
+    final hasProgress = chapters.any((c) => c.completionPercentage > 0);
+    final strongChapter = hasProgress
         ? chapters.reduce((a, b) =>
             a.completionPercentage >= b.completionPercentage ? a : b).name
         : '—';
-    final weakChapter = chapters.isNotEmpty
+    final weakChapter = hasProgress
         ? chapters.reduce((a, b) =>
             a.completionPercentage <= b.completionPercentage ? a : b).name
         : '—';

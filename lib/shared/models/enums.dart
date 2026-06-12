@@ -93,11 +93,12 @@ enum SubscriptionTier {
   }
 }
 
-/// Three main subjects for JEE/NEET.
+/// Main subjects for JEE/NEET.
 enum SubjectType {
   physics,
   chemistry,
-  mathematics;
+  mathematics,
+  biology;
 
   String get label {
     switch (this) {
@@ -107,6 +108,8 @@ enum SubjectType {
         return 'Chemistry';
       case SubjectType.mathematics:
         return 'Mathematics';
+      case SubjectType.biology:
+        return 'Biology';
     }
   }
 
@@ -119,6 +122,8 @@ enum SubjectType {
         return LucideIcons.flaskConical;
       case SubjectType.mathematics:
         return LucideIcons.sigma;
+      case SubjectType.biology:
+        return LucideIcons.microscope;
     }
   }
 
@@ -133,6 +138,8 @@ enum SubjectType {
         return 'flask';
       case SubjectType.mathematics:
         return 'sigma';
+      case SubjectType.biology:
+        return 'microscope';
     }
   }
 }

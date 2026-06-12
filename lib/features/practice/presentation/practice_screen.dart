@@ -150,11 +150,11 @@ class _TopicsTab extends ConsumerWidget {
               child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
+                  gradient: AppColors.heroGradient,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.3),
+                      color: AppColors.greenDarkAccent.withValues(alpha: 0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -254,6 +254,7 @@ class _TopicsTab extends ConsumerWidget {
     SubjectType.physics => AppColors.physicsGradient,
     SubjectType.chemistry => AppColors.chemistryGradient,
     SubjectType.mathematics => AppColors.mathematicsGradient,
+    SubjectType.biology => AppColors.biologyGradient,
   };
 }
 
