@@ -12,6 +12,8 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/settings_screen.dart';
 import '../../features/onboarding/presentation/test_selection_screen.dart';
 import '../../features/practice/presentation/practice_screen.dart';
+import '../../features/roadmap/presentation/roadmap_screen.dart';
+import '../../features/roadmap/presentation/roadmap_setup_screen.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/gradient_background.dart';
 import 'swipe_nav_provider.dart';
@@ -55,12 +57,37 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: '/profile',
+            path: '/settings',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: ProfileScreen(),
+              child: SettingsScreen(),
             ),
           ),
         ],
+      ),
+      // Profile lives outside the shell and opens as a panel that slides in
+      // from the left when the home-screen avatar is tapped.
+      GoRoute(
+        path: '/profile',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const ProfileScreen(),
+          transitionDuration: const Duration(milliseconds: 320),
+          reverseTransitionDuration: const Duration(milliseconds: 260),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(-1, 0),
+                end: Offset.zero,
+              ).animate(curved),
+              child: FadeTransition(opacity: curved, child: child),
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/test/:testId',
@@ -78,15 +105,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/subjects/:subjectId',
         builder: (context, state) => ChapterDetailScreen(
           subjectId: state.pathParameters['subjectId']!,
+          focusChapterId: state.uri.queryParameters['chapter'],
         ),
-      ),
-      GoRoute(
-        path: '/settings',
-        builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
         path: '/test-selection',
         builder: (context, state) => const TestSelectionScreen(),
+      ),
+      // Coaching-synced study roadmap (lives outside the shell).
+      GoRoute(
+        path: '/roadmap',
+        builder: (context, state) => const RoadmapScreen(),
+      ),
+      GoRoute(
+        path: '/roadmap/setup',
+        builder: (context, state) => const RoadmapSetupScreen(),
       ),
     ],
   );
@@ -102,7 +135,7 @@ class _ShellScaffold extends ConsumerStatefulWidget {
 }
 
 class _ShellScaffoldState extends ConsumerState<_ShellScaffold> {
-  static const _routes = ['/', '/practice', '/analytics', '/profile'];
+  static const _routes = ['/', '/practice', '/analytics', '/settings'];
 
   @override
   Widget build(BuildContext context) {

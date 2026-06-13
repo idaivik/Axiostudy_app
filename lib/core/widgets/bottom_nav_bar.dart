@@ -17,7 +17,7 @@ class BottomNavBar extends StatelessWidget {
     _NavItem(icon: LucideIcons.layoutDashboard, label: 'Home'),
     _NavItem(icon: LucideIcons.pencil, label: 'Practice'),
     _NavItem(icon: LucideIcons.searchCheck, label: 'Analysis'),
-    _NavItem(icon: LucideIcons.user, label: 'Profile'),
+    _NavItem(icon: LucideIcons.settings, label: 'Settings'),
   ];
 
   @override

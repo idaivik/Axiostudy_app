@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///   3 → Analytics (Overview tab)
 ///   4 → Analytics (Topics tab)
 ///   5 → Analytics (Trends tab)
-///   6 → Profile
+///   6 → Settings
 ///
 /// This maps to 4 bottom-nav sections with sub-tab offsets.
 class SwipeNavState {

@@ -3,9 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/widgets/gradient_background.dart';
+import '../../../core/widgets/animations.dart';
 
 /// Settings screen — the SINGLE place for all app settings.
+/// Rendered as a primary navigation tab inside the app shell.
 /// All toggles and buttons are functional.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,82 +22,125 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return GradientBackground(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('Settings'),
+    final items = <Widget>[
+      _SectionHeader('Notifications'),
+      _ToggleItem(
+        icon: LucideIcons.bell,
+        label: 'Push Notifications',
+        subtitle: 'Get test reminders and updates',
+        value: _notifications,
+        onChanged: (v) {
+          setState(() => _notifications = v);
+          _showSnack(context, v ? 'Notifications enabled' : 'Notifications disabled');
+        },
       ),
-      child: ListView(
-        padding: const EdgeInsets.all(16),
+      _ToggleItem(
+        icon: LucideIcons.alarmClock,
+        label: 'Daily Reminders',
+        subtitle: 'Remind me to study every day',
+        value: _dailyReminders,
+        onChanged: (v) {
+          setState(() => _dailyReminders = v);
+          _showSnack(context, v ? 'Daily reminders on' : 'Daily reminders off');
+        },
+      ),
+      const SizedBox(height: 16),
+      _SectionHeader('Study Plan'),
+      _TapItem(
+        icon: LucideIcons.milestone,
+        label: 'Study Roadmap',
+        subtitle: 'Coaching, exam date & daily time',
+        onTap: () => context.push('/roadmap/setup'),
+      ),
+      const SizedBox(height: 16),
+      _SectionHeader('General'),
+      _TapItem(
+        icon: LucideIcons.globe,
+        label: 'Language',
+        value: _language,
+        onTap: () => _showLanguageDialog(),
+      ),
+      _TapItem(
+        icon: LucideIcons.shield,
+        label: 'Data & Privacy',
+        onTap: () => _showInfoDialog(
+          'Data & Privacy',
+          'Your data is stored securely and never shared with third parties.\n\n'
+          '• Test results are encrypted at rest\n'
+          '• Analytics are processed locally\n'
+          '• You can request data deletion anytime\n\n'
+          'Full privacy policy at axiostudy.com/privacy',
+        ),
+      ),
+      _TapItem(
+        icon: LucideIcons.fileText,
+        label: 'Terms of Service',
+        onTap: () => _showInfoDialog(
+          'Terms of Service',
+          'By using AxioStudy, you agree to our terms:\n\n'
+          '• Content is for educational use only\n'
+          '• One account per student\n'
+          '• Respect intellectual property\n\n'
+          'Full terms at axiostudy.com/terms',
+        ),
+      ),
+      const SizedBox(height: 16),
+      _SectionHeader('Account'),
+      _TapItem(
+        icon: LucideIcons.key,
+        label: 'Change Password',
+        onTap: () => _showChangePasswordDialog(),
+      ),
+      _TapItem(
+        icon: LucideIcons.trash2,
+        label: 'Delete Account',
+        textColor: AppColors.error,
+        onTap: () => _showDeleteAccountDialog(),
+      ),
+    ];
+
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeader('Notifications'),
-          _ToggleItem(
-            icon: LucideIcons.bell,
-            label: 'Push Notifications',
-            subtitle: 'Get test reminders and updates',
-            value: _notifications,
-            onChanged: (v) {
-              setState(() => _notifications = v);
-              _showSnack(context, v ? 'Notifications enabled' : 'Notifications disabled');
-            },
-          ),
-          _ToggleItem(
-            icon: LucideIcons.alarmClock,
-            label: 'Daily Reminders',
-            subtitle: 'Remind me to study every day',
-            value: _dailyReminders,
-            onChanged: (v) {
-              setState(() => _dailyReminders = v);
-              _showSnack(context, v ? 'Daily reminders on' : 'Daily reminders off');
-            },
-          ),
-          const SizedBox(height: 16),
-          _SectionHeader('General'),
-          _TapItem(
-            icon: LucideIcons.globe,
-            label: 'Language',
-            value: _language,
-            onTap: () => _showLanguageDialog(),
-          ),
-          _TapItem(
-            icon: LucideIcons.shield,
-            label: 'Data & Privacy',
-            onTap: () => _showInfoDialog(
-              'Data & Privacy',
-              'Your data is stored securely and never shared with third parties.\n\n'
-              '• Test results are encrypted at rest\n'
-              '• Analytics are processed locally\n'
-              '• You can request data deletion anytime\n\n'
-              'Full privacy policy at axiostudy.com/privacy',
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 6),
+            child: AnimatedEntrance(
+              offsetY: -0.2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Settings',
+                    style: AppTypography.heading1
+                        .copyWith(fontSize: 26, letterSpacing: -0.6),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Manage your preferences',
+                    style: AppTypography.bodyMedium
+                        .copyWith(color: AppColors.textLight, fontSize: 14),
+                  ),
+                ],
+              ),
             ),
           ),
-          _TapItem(
-            icon: LucideIcons.fileText,
-            label: 'Terms of Service',
-            onTap: () => _showInfoDialog(
-              'Terms of Service',
-              'By using AxioStudy, you agree to our terms:\n\n'
-              '• Content is for educational use only\n'
-              '• One account per student\n'
-              '• Respect intellectual property\n\n'
-              'Full terms at axiostudy.com/terms',
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              children: [
+                for (int i = 0; i < items.length; i++)
+                  AnimatedEntrance(
+                    delay: Duration(milliseconds: 70 + i * 35),
+                    child: items[i],
+                  ),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          _SectionHeader('Account'),
-          _TapItem(
-            icon: LucideIcons.key,
-            label: 'Change Password',
-            onTap: () => _showChangePasswordDialog(),
-          ),
-          _TapItem(
-            icon: LucideIcons.trash2,
-            label: 'Delete Account',
-            textColor: AppColors.error,
-            onTap: () => _showDeleteAccountDialog(),
           ),
         ],
       ),
@@ -286,12 +330,14 @@ class _ToggleItem extends StatelessWidget {
 class _TapItem extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final String? value;
   final Color? textColor;
   final VoidCallback? onTap;
   const _TapItem({
     required this.icon,
     required this.label,
+    this.subtitle,
     this.value,
     this.textColor,
     this.onTap,
@@ -306,6 +352,9 @@ class _TapItem extends StatelessWidget {
     child: ListTile(
       leading: Icon(icon, size: 20, color: textColor ?? AppColors.textMedium),
       title: Text(label, style: AppTypography.bodyLarge.copyWith(color: textColor)),
+      subtitle: subtitle != null
+          ? Text(subtitle!, style: AppTypography.caption)
+          : null,
       trailing: value != null
           ? Text(value!, style: AppTypography.bodyMedium)
           : Icon(LucideIcons.chevronRight, color: AppColors.textLight, size: 18),

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/animations.dart';
+import '../../../core/widgets/gradient_background.dart';
 import '../../auth/data/auth_providers.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -14,147 +16,211 @@ class ProfileScreen extends ConsumerWidget {
     final userAsync = ref.watch(currentUserProvider);
     final user = userAsync.valueOrNull;
     if (user == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const GradientBackground(
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // Avatar
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Center(
-                child: Text(
-                  user.name.substring(0, 1),
-                  style: const TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(user.name, style: AppTypography.heading2),
-            Text(user.email, style: AppTypography.bodyMedium),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primarySurface,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                user.subscriptionTier.label,
-                style: AppTypography.labelSmall.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Stats card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.06),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _Stat(label: 'Tests', value: '${user.testsCompleted}'),
-                  Container(width: 1, height: 36, color: AppColors.surfaceDark),
-                  _Stat(label: 'Avg Score', value: '${user.averageScore.round()}%'),
-                  Container(width: 1, height: 36, color: AppColors.surfaceDark),
-                  _Stat(label: 'Streak', value: '${user.currentStreak}'),
-                  Container(width: 1, height: 36, color: AppColors.surfaceDark),
-                  _Stat(label: 'Mastered', value: '${user.topicsMastered}'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Menu items — single location for everything
-            _MenuItem(
-              icon: LucideIcons.creditCard,
-              label: 'Manage Subscription',
-              sub: user.subscriptionTier.price,
-              onTap: () => _showInfoDialog(
-                context,
-                'Manage Subscription',
-                'Your current plan: ${user.subscriptionTier.label}\n\nSubscription management will be available at axiostudy.com in a future update.',
-              ),
-            ),
-
-            _MenuItem(
-              icon: LucideIcons.settings,
-              label: 'Settings',
-              onTap: () => context.push('/settings'),
-            ),
-            _MenuItem(
-              icon: LucideIcons.helpCircle,
-              label: 'Help & Support',
-              onTap: () => _showInfoDialog(
-                context,
-                'Help & Support',
-                'Need help? Reach out to us:\n\nEmail: support@axiostudy.com\nResponse time: Within 24 hours\n\nFAQ and knowledge base coming soon.',
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Logout'),
-                      content: const Text('Are you sure you want to logout?'),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text('Cancel'),
+    return GradientBackground(
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          child: Column(
+            children: [
+              // ─── Header row: back affordance + title ───
+              AnimatedEntrance(
+                offsetX: -0.15,
+                offsetY: 0,
+                child: Row(
+                  children: [
+                    PressableScale(
+                      scale: 0.85,
+                      onTap: () => context.pop(),
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceLight,
+                          borderRadius: BorderRadius.circular(13),
                         ),
-                        ElevatedButton(
-                          onPressed: () async {
-                            Navigator.pop(ctx);
-                            ref.read(guestModeProvider.notifier).state = false;
-                            await ref.read(authRepositoryProvider).signOut();
-                            if (context.mounted) context.go('/login');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error,
-                          ),
-                          child: const Text('Logout', style: TextStyle(color: Colors.white)),
+                        child: Icon(
+                          LucideIcons.arrowLeft,
+                          size: 20,
+                          color: AppColors.textMedium,
                         ),
-                      ],
+                      ),
                     ),
-                  );
-                },
-                icon: const Icon(LucideIcons.logOut),
-                label: const Text('Logout'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                  side: const BorderSide(color: AppColors.error),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                    const SizedBox(width: 14),
+                    Text('Profile', style: AppTypography.heading2),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 100),
-          ],
+              const SizedBox(height: 20),
+              // Avatar + identity
+              AnimatedEntrance(
+                delay: const Duration(milliseconds: 80),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 80, height: 80,
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          user.name.substring(0, 1),
+                          style: const TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(user.name, style: AppTypography.heading2),
+                    Text(user.email, style: AppTypography.bodyMedium),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySurface,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        user.subscriptionTier.label,
+                        style: AppTypography.labelSmall.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Stats card
+              AnimatedEntrance(
+                delay: const Duration(milliseconds: 160),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _Stat(label: 'Tests', value: '${user.testsCompleted}'),
+                      Container(width: 1, height: 36, color: AppColors.surfaceDark),
+                      _Stat(label: 'Avg Score', value: '${user.averageScore.round()}%'),
+                      Container(width: 1, height: 36, color: AppColors.surfaceDark),
+                      _Stat(label: 'Streak', value: '${user.currentStreak}'),
+                      Container(width: 1, height: 36, color: AppColors.surfaceDark),
+                      _Stat(label: 'Mastered', value: '${user.topicsMastered}'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Menu items — single location for everything
+              AnimatedEntrance(
+                delay: const Duration(milliseconds: 220),
+                child: _MenuItem(
+                  icon: LucideIcons.creditCard,
+                  label: 'Manage Subscription',
+                  sub: user.subscriptionTier.price,
+                  onTap: () => _showInfoDialog(
+                    context,
+                    'Manage Subscription',
+                    'Your current plan: ${user.subscriptionTier.label}\n\nSubscription management will be available at axiostudy.com in a future update.',
+                  ),
+                ),
+              ),
+              AnimatedEntrance(
+                delay: const Duration(milliseconds: 270),
+                child: _MenuItem(
+                  icon: LucideIcons.settings,
+                  label: 'Settings',
+                  onTap: () => context.go('/settings'),
+                ),
+              ),
+              AnimatedEntrance(
+                delay: const Duration(milliseconds: 320),
+                child: _MenuItem(
+                  icon: LucideIcons.helpCircle,
+                  label: 'Help & Support',
+                  onTap: () => _showInfoDialog(
+                    context,
+                    'Help & Support',
+                    'Need help? Reach out to us:\n\nEmail: support@axiostudy.com\nResponse time: Within 24 hours\n\nFAQ and knowledge base coming soon.',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              AnimatedEntrance(
+                delay: const Duration(milliseconds: 380),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Logout'),
+                          content: const Text('Are you sure you want to logout?'),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () async {
+                                Navigator.pop(ctx);
+                                ref.read(guestModeProvider.notifier).state = false;
+                                await ref.read(authRepositoryProvider).signOut();
+                                if (context.mounted) context.go('/login');
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.error,
+                              ),
+                              child: const Text('Logout', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    icon: const Icon(LucideIcons.logOut),
+                    label: const Text('Logout'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(color: AppColors.error),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );

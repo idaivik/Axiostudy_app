@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/animations.dart';
 import '../../../core/widgets/progress_bar.dart';
 import '../../../core/widgets/subject_badge.dart';
 import '../../../core/widgets/gradient_background.dart';
@@ -145,7 +146,8 @@ class _TopicsTab extends ConsumerWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: GestureDetector(
+            child: PressableScale(
+              scale: 0.97,
               onTap: () => context.push('/test-selection'),
               child: Container(
                 padding: const EdgeInsets.all(20),
@@ -281,7 +283,7 @@ class _SubjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(20),
@@ -538,7 +540,7 @@ class _TestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
@@ -628,7 +630,7 @@ class _ResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),

@@ -14,6 +14,7 @@ import 'widgets/radar_chart_widget.dart';
 import 'widgets/scatter_plot_widget.dart';
 import 'widgets/skill_tree_widget.dart';
 import 'widgets/area_line_chart_widget.dart';
+import 'widgets/strength_meter_card.dart';
 import '../domain/chart_data_models.dart';
 
 // AI Analytics Engine Output — Visual Dashboard (now data-driven)
@@ -239,6 +240,10 @@ class _TopicsTab extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          // ─── Subject Strength (per-subject + chapter-level mastery) ───
+          const StrengthMeterCard(),
+          const SizedBox(height: 8),
+
           // ─── Radar Chart ───
           _SectionCard(
             title: 'Mastery Shape',

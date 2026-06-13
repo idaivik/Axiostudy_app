@@ -5,16 +5,15 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/animations.dart';
 import '../../../features/auth/data/auth_providers.dart';
 import '../../../features/onboarding/presentation/diagnostic_modal.dart';
 import '../../analytics/data/analytics_providers.dart';
 import 'widgets/diagnostic_prompt_card.dart';
 import 'widgets/notifications_sheet.dart';
 import 'widgets/readiness_banner.dart';
+import 'widgets/roadmap_home_card.dart';
 import 'widgets/todays_plan_card.dart';
-import 'widgets/strength_meter_card.dart';
-import 'widgets/score_trends_card.dart';
-import 'widgets/upcoming_tests_card.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -100,9 +99,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
                     child: Row(
                       children: [
-                        // Profile avatar (circle, left)
-                        GestureDetector(
-                          onTap: () => context.go('/profile'),
+                        // Profile avatar (circle, left) — opens the profile
+                        // panel with a left-to-right slide-in transition.
+                        PressableScale(
+                          scale: 0.9,
+                          onTap: () => context.push('/profile'),
                           child: Container(
                             width: 46,
                             height: 46,
@@ -158,7 +159,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         ),
                         const SizedBox(width: 12),
                         // Notification bell (right)
-                        GestureDetector(
+                        PressableScale(
+                          scale: 0.88,
                           onTap: () => showNotificationsSheet(context),
                           child: Stack(
                             clipBehavior: Clip.none,
@@ -206,27 +208,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ),
 
-            // AI insight strip
-            SliverToBoxAdapter(
-              child: FadeTransition(
-                opacity: _headerFade,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: _AIInsightStrip(),
-                ),
-              ),
-            ),
-
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  const DiagnosticPromptCard(),
-                  const ReadinessBanner(),
-                  const TodaysPlanCard(),
-                  const StrengthMeterCard(),
-                  const ScoreTrendsCard(),
-                  const UpcomingTestCard(),
+                  const AnimatedEntrance(
+                    delay: Duration(milliseconds: 80),
+                    child: DiagnosticPromptCard(),
+                  ),
+                  const AnimatedEntrance(
+                    delay: Duration(milliseconds: 160),
+                    child: ReadinessBanner(),
+                  ),
+                  const AnimatedEntrance(
+                    delay: Duration(milliseconds: 240),
+                    child: RoadmapHomeCard(),
+                  ),
+                  const AnimatedEntrance(
+                    delay: Duration(milliseconds: 320),
+                    child: TodaysPlanCard(),
+                  ),
                   const SizedBox(height: 110),
                 ]),
               ),
@@ -242,64 +243,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (h < 12) return 'Good morning';
     if (h < 17) return 'Good afternoon';
     return 'Good evening';
-  }
-}
-
-class _AIInsightStrip extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final weakAsync = ref.watch(weakTopicsProvider);
-    final weakTopics = weakAsync.valueOrNull ?? [];
-
-    final message = weakTopics.isEmpty
-        ? 'Take a test to get your personalized AI study insights'
-        : weakTopics.length == 1
-            ? 'AI detected 1 weak topic from your tests — focus on ${_topicName(weakTopics.first.topicId)} today'
-            : 'AI detected ${weakTopics.length} weak topics from your tests — focus on those today';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.greenWash,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(LucideIcons.brain, size: 14, color: AppColors.primary),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppColors.greenStrong,
-                height: 1.4,
-              ),
-            ),
-          ),
-          Icon(LucideIcons.chevronRight, size: 14, color: AppColors.primary),
-        ],
-      ),
-    );
-  }
-
-  String _topicName(String topicId) {
-    final parts = topicId.split('_');
-    if (parts.length >= 3) {
-      return parts.sublist(2).map((s) {
-        if (s.isEmpty) return s;
-        return s[0].toUpperCase() + s.substring(1);
-      }).join(' ');
-    }
-    return topicId;
   }
 }
 
