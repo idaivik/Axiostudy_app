@@ -6,8 +6,14 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/gradient_background.dart';
 import '../../../core/widgets/progress_circle.dart';
+import '../../../core/notifications/notification_service.dart';
 import '../../analytics/data/analytics_providers.dart';
 import '../../analytics/domain/analytics_models.dart';
+import '../../analytics/domain/chapter_insight_models.dart';
+import '../../practice/data/practice_providers.dart';
+import '../../practice/data/practice_repository.dart';
+import '../../test/domain/test_models.dart';
+import '../../../shared/models/enums.dart';
 import 'widgets/subject_breakdown_card.dart';
 import 'widgets/chapter_analysis_card.dart';
 import 'widgets/time_analysis_card.dart';
@@ -27,6 +33,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
   late AnimationController _controller;
   late Animation<double> _fadeAnim;
   late Animation<double> _scoreAnim;
+  bool _reminderScheduled = false;
 
   @override
   void initState() {
@@ -53,6 +60,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
   @override
   Widget build(BuildContext context) {
     final analyticsAsync = ref.watch(attemptAnalyticsProvider(widget.attemptId));
+    final insights =
+        ref.watch(chapterInsightsProvider(widget.attemptId)).valueOrNull ??
+            const <ChapterInsight>[];
 
     return GradientBackground(
       appBar: AppBar(
@@ -72,12 +82,23 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
       child: analyticsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error loading analytics: $e')),
-        data: (analytics) => _buildContent(analytics),
+        data: (analytics) => _buildContent(analytics, insights),
       ),
     );
   }
 
-  Widget _buildContent(AttemptAnalyticsResult? analytics) {
+  Widget _buildContent(
+      AttemptAnalyticsResult? analytics, List<ChapterInsight> insights) {
+    // Skipped-practice nudge: if this test surfaced weak chapters, schedule a
+    // 24h reminder. Starting any practice session cancels it (see TestScreen).
+    if (insights.any((i) => i.isWeak) && !_reminderScheduled) {
+      _reminderScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NotificationService.instance.requestPermission();
+        NotificationService.instance.schedulePracticeReminder();
+      });
+    }
+
     // Compute display values from analytics or use defaults
     final scorePercentage = analytics?.scorePercentage ?? 0;
     final totalCorrect = analytics?.totalCorrect ?? 0;
@@ -197,6 +218,24 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
 
           const SizedBox(height: 16),
 
+          // AI chapter insights (server weakness engine) — primary guidance.
+          if (insights.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _ChapterInsightsCard(insights: insights),
+            ),
+          if (insights.isNotEmpty) const SizedBox(height: 12),
+
+          // What next? — the 3 post-result paths (Phase 2).
+          if (insights.any((i) => i.isWeak))
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _PostResultActionsCard(
+                weakest: _weakestChapter(insights),
+              ),
+            ),
+          if (insights.any((i) => i.isWeak)) const SizedBox(height: 12),
+
           // Step 16: Display weakness analysis
           if (analytics != null && analytics.weakTopics.isNotEmpty)
             Padding(
@@ -241,8 +280,11 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
 
           const SizedBox(height: 20),
 
-          // Step 18: Recommend practice tests
-          if (analytics != null && analytics.recommendations.isNotEmpty)
+          // Step 18: Recommend practice tests — rule-based engine, now a
+          // FALLBACK shown only when the AI chapter insights are unavailable.
+          if (insights.isEmpty &&
+              analytics != null &&
+              analytics.recommendations.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _RecommendedPracticeCard(recommendations: analytics.recommendations),
@@ -292,6 +334,25 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     if (score >= 50) return const Color(0xFFFBBF24);
     return const Color(0xFFFC8181);
   }
+
+  /// The most urgent weak chapter (highest AI priority) to target post-result.
+  ChapterInsight _weakestChapter(List<ChapterInsight> insights) {
+    final weak = insights.where((i) => i.isWeak).toList()
+      ..sort((a, b) => (b.priorityScore ?? 0).compareTo(a.priorityScore ?? 0));
+    return weak.isNotEmpty ? weak.first : insights.first;
+  }
+}
+
+/// Maps a coarse difficulty label from a chapter's 0–100 score.
+String _difficultyForScore(double scorePercentage) {
+  if (scorePercentage < 35) return 'easy';
+  if (scorePercentage <= 65) return 'medium';
+  return 'hard';
+}
+
+String _prettyChapter(WidgetRef ref, String chapterId) {
+  final names = ref.watch(chapterNamesProvider).valueOrNull;
+  return names?[chapterId] ?? chapterId;
 }
 
 class _StatChip extends StatelessWidget {
@@ -617,6 +678,341 @@ class _TopicRow extends StatelessWidget {
           Divider(color: AppColors.divider, height: 1, thickness: 0.5),
         ],
       ],
+    );
+  }
+}
+
+// ── AI Chapter Insights (server weakness engine) ──────────────────────────────
+class _ChapterInsightsCard extends ConsumerWidget {
+  final List<ChapterInsight> insights;
+  const _ChapterInsightsCard({required this.insights});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ranked = [...insights]
+      ..sort((a, b) => (b.priorityScore ?? 0).compareTo(a.priorityScore ?? 0));
+    final top = ranked.take(4).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.06), blurRadius: 24, offset: const Offset(0, 6)),
+          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 1)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(color: AppColors.greenSurface, borderRadius: BorderRadius.circular(12)),
+                child: Icon(LucideIcons.brain, color: AppColors.primary, size: 17),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('AI Chapter Insights', style: AppTypography.heading3),
+                    Text('Ranked by what to fix first', style: AppTypography.caption),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...top.map((i) => _InsightRow(
+                insight: i,
+                chapterName: _prettyChapter(ref, i.chapterId),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+class _InsightRow extends StatelessWidget {
+  final ChapterInsight insight;
+  final String chapterName;
+  const _InsightRow({required this.insight, required this.chapterName});
+
+  @override
+  Widget build(BuildContext context) {
+    final score = insight.scorePercentage.round();
+    final color = insight.isWeak
+        ? AppColors.wrong
+        : insight.isStrong
+            ? AppColors.primary
+            : AppColors.weak;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(chapterName,
+                    style: AppTypography.bodyLarge
+                        .copyWith(fontWeight: FontWeight.w600, fontSize: 14)),
+              ),
+              if (insight.errorPattern != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(insight.errorPattern!,
+                      style: AppTypography.labelSmall.copyWith(color: AppColors.textMedium)),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Text('$score%',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: color)),
+              if (insight.improvementFromLastTest != null) ...[
+                const SizedBox(width: 6),
+                Text(
+                  '${insight.improvementFromLastTest! >= 0 ? '+' : ''}${insight.improvementFromLastTest!.round()}',
+                  style: AppTypography.labelSmall.copyWith(
+                    color: insight.improvementFromLastTest! >= 0 ? AppColors.success : AppColors.wrong,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (insight.weaknessReasoning != null) ...[
+            const SizedBox(height: 4),
+            Text(insight.weaknessReasoning!, style: AppTypography.caption),
+          ],
+          if (insight.recommendedAction != null) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.greenSurface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(LucideIcons.target, size: 13, color: AppColors.primary),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(insight.recommendedAction!,
+                        style: AppTypography.caption.copyWith(color: AppColors.textDark)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Post-result actions: the 3 practice paths (Phase 2) ──────────────────────
+class _PostResultActionsCard extends ConsumerStatefulWidget {
+  final ChapterInsight weakest;
+  const _PostResultActionsCard({required this.weakest});
+
+  @override
+  ConsumerState<_PostResultActionsCard> createState() => _PostResultActionsCardState();
+}
+
+class _PostResultActionsCardState extends ConsumerState<_PostResultActionsCard> {
+  bool _busy = false;
+
+  Future<void> _launch(Test test, {String emptyMsg = 'No questions available.'}) async {
+    if (test.questions.isEmpty) {
+      _toast(emptyMsg);
+      return;
+    }
+    ref.read(activePracticeTestProvider.notifier).state = test;
+    if (mounted) context.push('/practice/session');
+  }
+
+  void _toast(String msg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() => _busy = true);
+    try {
+      await action();
+    } catch (e) {
+      _toast('Something went wrong: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _adaptive() => _run(() async {
+        final test = await ref.read(practiceRepositoryProvider).buildAdaptiveSession();
+        await _launch(test, emptyMsg: 'No weak-chapter questions available yet.');
+      });
+
+  Future<void> _moreLikeThis(int delta) => _run(() async {
+        final w = widget.weakest;
+        final test = await ref.read(practiceRepositoryProvider).moreLikeThis(
+              chapterId: w.chapterId,
+              currentDifficulty: _difficultyForScore(w.scorePercentage),
+              delta: delta,
+            );
+        await _launch(test, emptyMsg: 'No more questions in that band — try another difficulty.');
+      });
+
+  Future<void> _generate() => _run(() async {
+        final w = widget.weakest;
+        final result = await ref.read(practiceRepositoryProvider).generateQuestions(
+              chapterId: w.chapterId,
+              difficulty: _difficultyForScore(w.scorePercentage),
+              count: 3,
+            );
+        if (!result.ok) {
+          _toast(result.message);
+          return;
+        }
+        final qs = result.questions;
+        await _launch(Test(
+          id: PracticeRepository.adaptiveTestId,
+          name: 'AI Generated Practice',
+          type: TestType.practice,
+          duration: Duration(minutes: (qs.length * 1.5).ceil().clamp(5, 60)),
+          totalQuestions: qs.length,
+          subjectIds: qs.map((q) => q.subjectId).toSet().toList(),
+          questions: qs,
+        ));
+      });
+
+  @override
+  Widget build(BuildContext context) {
+    final chapter = _prettyChapter(ref, widget.weakest.chapterId);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: AppColors.greenDarkAccent.withValues(alpha: 0.25), blurRadius: 22, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.zap, color: AppColors.greenLight, size: 18),
+              const SizedBox(width: 8),
+              Text('What next?',
+                  style: AppTypography.heading3.copyWith(color: Colors.white)),
+              const Spacer(),
+              if (_busy)
+                const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('Targeting your weakest chapter: $chapter',
+              style: AppTypography.caption.copyWith(color: Colors.white.withValues(alpha: 0.8))),
+          const SizedBox(height: 14),
+
+          // (1) Adaptive practice across weak chapters.
+          _ActionButton(
+            icon: LucideIcons.brain,
+            label: 'Practice my weak chapters',
+            onTap: _busy ? null : _adaptive,
+          ),
+          const SizedBox(height: 8),
+
+          // (2) More like this — easier / same / harder, same chapter.
+          Text('More like this',
+              style: AppTypography.labelSmall.copyWith(color: Colors.white.withValues(alpha: 0.85))),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(child: _MiniButton(label: 'Easier', onTap: _busy ? null : () => _moreLikeThis(-1))),
+              const SizedBox(width: 8),
+              Expanded(child: _MiniButton(label: 'Same', onTap: _busy ? null : () => _moreLikeThis(0))),
+              const SizedBox(width: 8),
+              Expanded(child: _MiniButton(label: 'Harder', onTap: _busy ? null : () => _moreLikeThis(1))),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // (3) Custom AI generation (paid).
+          _ActionButton(
+            icon: LucideIcons.sparkles,
+            label: 'Generate fresh AI questions',
+            onTap: _busy ? null : _generate,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  const _ActionButton({required this.icon, required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.white),
+            const SizedBox(width: 10),
+            Text(label, style: AppTypography.bodyMedium.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            Icon(LucideIcons.chevronRight, size: 16, color: Colors.white.withValues(alpha: 0.7)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+  const _MiniButton({required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+        ),
+        child: Text(label,
+            style: AppTypography.labelSmall.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+      ),
     );
   }
 }

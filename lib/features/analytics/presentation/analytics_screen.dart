@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -9,7 +10,10 @@ import '../../../core/router/swipe_nav_provider.dart';
 import '../../../shared/models/enums.dart';
 import '../data/analytics_providers.dart';
 import '../../auth/data/auth_providers.dart';
+import '../../practice/data/practice_providers.dart';
+import '../../practice/data/practice_repository.dart';
 import '../domain/analytics_models.dart';
+import '../domain/chapter_insight_models.dart';
 import 'widgets/radar_chart_widget.dart';
 import 'widgets/scatter_plot_widget.dart';
 import 'widgets/skill_tree_widget.dart';
@@ -143,6 +147,8 @@ class _OverviewTab extends ConsumerWidget {
         ref.invalidate(currentUserProvider);
         ref.invalidate(scoreHistoryProvider);
         ref.invalidate(studyStreakProvider);
+        ref.invalidate(recoveryTrackingProvider);
+        ref.invalidate(weakChaptersProvider);
         await ref.read(userStatsProvider.future);
       },
       child: SingleChildScrollView(
@@ -198,9 +204,178 @@ class _OverviewTab extends ConsumerWidget {
             ),
           ),
 
+          const SizedBox(height: 14),
+          const _RecoveryTrackerCard(),
+          const SizedBox(height: 14),
+          const _WeakChaptersCard(),
+
           const SizedBox(height: 80),
         ],
       ),
+      ),
+    );
+  }
+}
+
+// ── Recovery Tracker — before → after over chapter_analytics history ──────────
+class _RecoveryTrackerCard extends ConsumerWidget {
+  const _RecoveryTrackerCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recovery = ref.watch(recoveryTrackingProvider).valueOrNull ?? [];
+    if (recovery.isEmpty) return const SizedBox.shrink();
+    final names = ref.watch(chapterNamesProvider).valueOrNull ?? {};
+    final top = recovery.take(4).toList();
+
+    return _SectionCard(
+      title: 'Recovery Tracker',
+      subtitle: 'How your weak chapters are moving',
+      icon: LucideIcons.trendingUp,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          children: [
+            for (final r in top)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        names[r.chapterId] ?? r.chapterId,
+                        style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text('${r.firstScore.round()}%',
+                        style: AppTypography.caption.copyWith(color: AppColors.textMedium)),
+                    Icon(LucideIcons.arrowRight, size: 14, color: AppColors.textLight),
+                    Text('${r.lastScore.round()}%',
+                        style: AppTypography.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: r.delta >= 0 ? AppColors.success : AppColors.wrong)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: (r.delta >= 0 ? AppColors.success : AppColors.wrong).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${r.delta >= 0 ? '+' : ''}${r.delta.round()}',
+                        style: AppTypography.labelSmall.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: r.delta >= 0 ? AppColors.success : AppColors.wrong,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Weak Chapters — persistent mastery + one-tap targeted practice ────────────
+class _WeakChaptersCard extends ConsumerStatefulWidget {
+  const _WeakChaptersCard();
+
+  @override
+  ConsumerState<_WeakChaptersCard> createState() => _WeakChaptersCardState();
+}
+
+class _WeakChaptersCardState extends ConsumerState<_WeakChaptersCard> {
+  bool _busy = false;
+
+  Future<void> _practice(WeakChapter wc) async {
+    setState(() => _busy = true);
+    try {
+      final band = PracticeRepository.bandForMastery(wc.weaknessScore);
+      final test = await ref.read(practiceRepositoryProvider).moreLikeThis(
+            chapterId: wc.chapterId,
+            currentDifficulty: band.label,
+            delta: 0,
+          );
+      if (test.questions.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No fresh questions left for that chapter.')),
+          );
+        }
+        return;
+      }
+      ref.read(activePracticeTestProvider.notifier).state = test;
+      if (mounted) context.push('/practice/session');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start practice: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final weak = ref.watch(weakChaptersProvider).valueOrNull ?? [];
+    final tracked = weak.where((w) => w.status == 'weak').take(5).toList();
+    if (tracked.isEmpty) return const SizedBox.shrink();
+    final names = ref.watch(chapterNamesProvider).valueOrNull ?? {};
+
+    return _SectionCard(
+      title: 'Weak Chapters',
+      subtitle: 'Tap to drill at your level',
+      icon: LucideIcons.target,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Column(
+          children: [
+            for (final wc in tracked)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(names[wc.chapterId] ?? wc.chapterId,
+                              style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: (wc.weaknessScore / 100).clamp(0.0, 1.0),
+                              minHeight: 5,
+                              backgroundColor: AppColors.surfaceDark,
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.weak),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text('${wc.weaknessScore.round()}%',
+                        style: AppTypography.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w700, color: AppColors.weak)),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _busy ? null : () => _practice(wc),
+                      icon: Icon(LucideIcons.play, size: 18, color: AppColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -12,6 +12,8 @@ import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/settings_screen.dart';
 import '../../features/onboarding/presentation/test_selection_screen.dart';
 import '../../features/practice/presentation/practice_screen.dart';
+import '../../features/practice/data/practice_providers.dart';
+import '../../features/practice/data/practice_repository.dart';
 import '../../features/roadmap/presentation/roadmap_screen.dart';
 import '../../features/roadmap/presentation/roadmap_setup_screen.dart';
 import '../widgets/bottom_nav_bar.dart';
@@ -111,6 +113,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/test-selection',
         builder: (context, state) => const TestSelectionScreen(),
+      ),
+      // Adaptive practice runner — picks up the in-memory session prepared by
+      // the practice screen (assembled from weak chapters / generation).
+      GoRoute(
+        path: '/practice/session',
+        builder: (context, state) {
+          final test = ref.read(activePracticeTestProvider);
+          if (test == null) return const PracticeScreen();
+          return TestScreen(
+            testId: PracticeRepository.adaptiveTestId,
+            test: test,
+          );
+        },
       ),
       // Coaching-synced study roadmap (lives outside the shell).
       GoRoute(

@@ -13,6 +13,8 @@ import '../../../shared/models/enums.dart';
 import '../../subjects/data/subjects_providers.dart';
 import '../../auth/data/auth_providers.dart';
 import '../../analytics/data/analytics_providers.dart';
+import '../../test/data/test_providers.dart';
+import '../data/practice_providers.dart';
 
 class PracticeScreen extends ConsumerStatefulWidget {
   const PracticeScreen({super.key});
@@ -126,6 +128,36 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen>
 class _TopicsTab extends ConsumerWidget {
   const _TopicsTab();
 
+  /// Assemble an adaptive session from the user's weak chapters and launch it.
+  Future<void> _startAdaptivePractice(BuildContext context, WidgetRef ref) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final session = await ref.read(practiceRepositoryProvider).buildAdaptiveSession();
+      if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (session.questions.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('No practice questions available yet — take a test first.'),
+          ));
+        }
+        return;
+      }
+      ref.read(activePracticeTestProvider.notifier).state = session;
+      if (context.mounted) context.push('/practice/session');
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start practice: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final subjectsAsync = ref.watch(subjectsProvider);
@@ -148,7 +180,7 @@ class _TopicsTab extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: PressableScale(
               scale: 0.97,
-              onTap: () => context.push('/test-selection'),
+              onTap: () => _startAdaptivePractice(context, ref),
               child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -358,12 +390,18 @@ class _TestsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider).valueOrNull;
+    final tests = (ref.watch(testsProvider).valueOrNull ?? [])
+        .where((t) => t.id != 'adaptive_practice')
+        .toList();
+    final history = ref.watch(scoreHistoryProvider).valueOrNull ?? [];
 
     return RefreshIndicator(
       color: AppColors.primary,
       onRefresh: () async {
         ref.invalidate(currentUserProvider);
         ref.invalidate(topicPerformanceProvider);
+        ref.invalidate(testsProvider);
+        ref.invalidate(scoreHistoryProvider);
         await ref.read(currentUserProvider.future);
       },
       child: CustomScrollView(
@@ -397,43 +435,36 @@ class _TestsTab extends ConsumerWidget {
             ),
           ),
         ),
-        // Upcoming tests
+        // Available tests (real data from the `tests` table)
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Text('Upcoming Mocks', style: AppTypography.heading2),
+            child: Text('Available Tests', style: AppTypography.heading2),
           ),
         ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              _TestCard(
-                title: 'JEE Full Mock Test #5',
-                subtitle: '90 questions  |  3 hours',
-                date: 'May 9, 2026',
-                icon: LucideIcons.fileText,
-                isHighlighted: true,
-                onTap: () => context.push('/test/test_diag_001'),
-              ),
-              _TestCard(
-                title: 'Physics Practice Test',
-                subtitle: '30 questions  |  1 hour',
-                date: 'May 12, 2026',
-                icon: LucideIcons.atom,
-                onTap: () => context.push('/test/test_diag_001'),
-              ),
-              _TestCard(
-                title: 'Chemistry Mock Test',
-                subtitle: '30 questions  |  1 hour',
-                date: 'May 15, 2026',
-                icon: LucideIcons.flaskConical,
-                onTap: () => context.push('/test/test_diag_001'),
-              ),
-            ]),
-          ),
+          sliver: tests.isEmpty
+              ? const SliverToBoxAdapter(child: _EmptyHint('No tests available yet.'))
+              : SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final t = tests[index];
+                      return _TestCard(
+                        title: t.name,
+                        subtitle:
+                            '${t.totalQuestions} questions  |  ${t.duration.inMinutes} min',
+                        date: t.type.label,
+                        icon: _iconForTest(t.type),
+                        isHighlighted: index == 0,
+                        onTap: () => context.push('/test/${t.id}'),
+                      );
+                    },
+                    childCount: tests.length,
+                  ),
+                ),
         ),
-        // Past results
+        // Past results (real data from score_history)
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -442,32 +473,30 @@ class _TestsTab extends ConsumerWidget {
         ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              _ResultCard(
-                title: 'JEE Mock Test #4',
-                score: 72.5,
-                date: 'May 5, 2026',
-                improvement: 7.5,
-                onTap: () => context.push('/results/attempt_001'),
-              ),
-              _ResultCard(
-                title: 'Physics Practice',
-                score: 65.0,
-                date: 'Apr 29, 2026',
-                improvement: 7.0,
-                onTap: () => context.push('/results/attempt_001'),
-              ),
-              _ResultCard(
-                title: 'JEE Mock Test #3',
-                score: 58.0,
-                date: 'Apr 22, 2026',
-                improvement: 10.0,
-                onTap: () => context.push('/results/attempt_001'),
-              ),
-              const SizedBox(height: 100),
-            ]),
-          ),
+          sliver: history.isEmpty
+              ? const SliverToBoxAdapter(
+                  child: _EmptyHint('No results yet — take a test to see your analysis.'),
+                )
+              : SliverList(
+                  delegate: SliverChildListDelegate([
+                    // Newest first; improvement = delta vs the prior attempt.
+                    for (int i = history.length - 1;
+                        i >= 0 && history.length - 1 - i < 8;
+                        i--)
+                      _ResultCard(
+                        title: history[i].testName ?? 'Practice Test',
+                        score: history[i].scorePercentage,
+                        date: _fmtDate(history[i].completedAt),
+                        improvement: i > 0
+                            ? history[i].scorePercentage -
+                                history[i - 1].scorePercentage
+                            : 0,
+                        onTap: () =>
+                            context.push('/results/${history[i].attemptId}'),
+                      ),
+                    const SizedBox(height: 100),
+                  ]),
+                ),
         ),
       ],
       ),
@@ -677,29 +706,70 @@ class _ResultCard extends StatelessWidget {
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.successLight,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.trendingUp, size: 12, color: AppColors.success),
-                  const SizedBox(width: 4),
-                  Text(
-                    '+${improvement.round()}%',
-                    style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.success,
-                      fontWeight: FontWeight.w700,
+            if (improvement.abs() >= 0.5)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: improvement >= 0 ? AppColors.successLight : AppColors.errorLight,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      improvement >= 0 ? LucideIcons.trendingUp : LucideIcons.trendingDown,
+                      size: 12,
+                      color: improvement >= 0 ? AppColors.success : AppColors.wrong,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 4),
+                    Text(
+                      '${improvement >= 0 ? '+' : ''}${improvement.round()}%',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: improvement >= 0 ? AppColors.success : AppColors.wrong,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+IconData _iconForTest(TestType type) {
+  switch (type) {
+    case TestType.diagnostic:
+      return LucideIcons.clipboardCheck;
+    case TestType.mock:
+      return LucideIcons.fileText;
+    case TestType.practice:
+      return LucideIcons.pencil;
+  }
+}
+
+String _fmtDate(DateTime d) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[d.month - 1]} ${d.day}, ${d.year}';
+}
+
+class _EmptyHint extends StatelessWidget {
+  final String message;
+  const _EmptyHint(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+      child: Text(
+        message,
+        style: AppTypography.bodyMedium.copyWith(color: AppColors.textMedium),
+        textAlign: TextAlign.center,
       ),
     );
   }

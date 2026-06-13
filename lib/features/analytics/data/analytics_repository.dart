@@ -1,11 +1,105 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/analytics_models.dart';
+import '../domain/chapter_insight_models.dart';
 
 /// Repository for reading/writing analytics data to Supabase.
 class AnalyticsRepository {
   final SupabaseClient _client;
 
   AnalyticsRepository(this._client);
+
+  // ─── Chapter Analytics (server weakness engine, Phase 1) ───
+
+  /// Per-chapter AI-enriched insights for a single attempt.
+  Future<List<ChapterInsight>> getChapterInsightsForAttempt(
+      String attemptId) async {
+    final data = await _client
+        .from('chapter_analytics')
+        .select()
+        .eq('attempt_id', attemptId)
+        .order('priority_score', ascending: false);
+    return data
+        .map((json) => ChapterInsight.fromJson(json))
+        .toList();
+  }
+
+  /// Full chapter-analytics history for a chapter (drives the Recovery
+  /// Tracker — before/after over time).
+  Future<List<ChapterInsight>> getChapterHistory({
+    required String userId,
+    required String chapterId,
+  }) async {
+    final data = await _client
+        .from('chapter_analytics')
+        .select()
+        .eq('user_id', userId)
+        .eq('chapter_id', chapterId)
+        .order('computed_at', ascending: true);
+    return data
+        .map((json) => ChapterInsight.fromJson(json))
+        .toList();
+  }
+
+  /// Persistent per-chapter mastery rows for a user.
+  Future<List<WeakChapter>> getWeakChapters(String userId) async {
+    final data = await _client
+        .from('user_weak_chapters')
+        .select()
+        .eq('user_id', userId)
+        .order('weakness_score', ascending: true);
+    return data
+        .map((json) => WeakChapter.fromJson(json))
+        .toList();
+  }
+
+  /// Top weak chapters (status='weak'), weakest first — the adaptive loop's
+  /// practice queue (Phase 3).
+  Future<List<WeakChapter>> getTopWeakChapters(
+    String userId, {
+    int limit = 3,
+  }) async {
+    final data = await _client
+        .from('user_weak_chapters')
+        .select()
+        .eq('user_id', userId)
+        .eq('status', 'weak')
+        .order('weakness_score', ascending: true)
+        .limit(limit);
+    return data
+        .map((json) => WeakChapter.fromJson(json))
+        .toList();
+  }
+
+  /// Before → after recovery per chapter, from the full chapter_analytics
+  /// history. Only chapters seen in 2+ tests (so a delta exists).
+  Future<List<ChapterRecovery>> getRecoveryTracking(String userId) async {
+    final data = await _client
+        .from('chapter_analytics')
+        .select('chapter_id, subject_id, score_percentage, computed_at')
+        .eq('user_id', userId)
+        .order('computed_at', ascending: true);
+
+    final byChapter = <String, List<Map<String, dynamic>>>{};
+    for (final row in data) {
+      byChapter.putIfAbsent(row['chapter_id'] as String, () => []).add(row);
+    }
+
+    final result = <ChapterRecovery>[];
+    byChapter.forEach((chapterId, rows) {
+      if (rows.length < 2) return;
+      result.add(ChapterRecovery(
+        chapterId: chapterId,
+        subjectId: rows.first['subject_id'] as String?,
+        firstScore: (rows.first['score_percentage'] as num?)?.toDouble() ?? 0,
+        lastScore: (rows.last['score_percentage'] as num?)?.toDouble() ?? 0,
+        attempts: rows.length,
+      ));
+    });
+
+    // Biggest movers first.
+    result.sort((a, b) => b.delta.abs().compareTo(a.delta.abs()));
+    return result;
+  }
 
   // ─── Attempt Analytics ───
 

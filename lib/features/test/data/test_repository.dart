@@ -120,7 +120,10 @@ class TestRepository {
     // 1. Submit the attempt (persist answers + update status)
     await submitAttempt(attempt);
 
-    // 2. Run the analytics engine
+    // 2. Run the local analytics engine.
+    //    This stays primary for the legacy tables (attempt_analytics,
+    //    topic_performance, score_history, streak, recommendations, profile)
+    //    AND is the offline/failure fallback per the hybrid design.
     try {
       final result = await analyticsEngine.processAttempt(
         attempt: attempt,
@@ -134,12 +137,41 @@ class TestRepository {
           .update({'status': 'analyzed'})
           .eq('id', attempt.id);
 
+      // 4. Additive server-side layer: chapter-level analytics + the one
+      //    gated AI insight call (compute-analytics edge function). Writes
+      //    chapter_analytics + user_weak_chapters and caches the grade summary
+      //    on the attempt. Never blocks submission — on any failure the local
+      //    result above already stands.
+      await runServerAnalytics(attempt.id);
+
       return result;
     } catch (e) {
       // Analytics failure should not block test submission
       // The attempt is already saved — analytics can be retried
       // ignore: avoid_print
       print('Analytics engine error: $e');
+      return null;
+    }
+  }
+
+  /// Invoke the `compute-analytics` edge function for [attemptId].
+  ///
+  /// Returns the parsed insight payload (`{ ok, ai_used, chapters, ... }`) on
+  /// success, or `null` if the function is unavailable or errors — the caller
+  /// must treat this as best-effort and never let it block the user.
+  Future<Map<String, dynamic>?> runServerAnalytics(String attemptId) async {
+    try {
+      final res = await _client.functions.invoke(
+        'compute-analytics',
+        body: {'attempt_id': attemptId},
+      );
+      final data = res.data;
+      if (data is Map<String, dynamic>) return data;
+      return null;
+    } catch (e) {
+      // Edge function not deployed / network / AI error — degrade silently.
+      // ignore: avoid_print
+      print('compute-analytics edge function unavailable: $e');
       return null;
     }
   }

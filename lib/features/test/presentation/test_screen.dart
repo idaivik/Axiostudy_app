@@ -4,7 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/supabase/supabase_providers.dart';
+import '../../../core/notifications/notification_service.dart';
 import '../../../shared/models/enums.dart';
+import '../../analytics/data/analytics_providers.dart';
+import '../../practice/data/practice_providers.dart';
 import '../domain/test_models.dart';
 import '../data/test_providers.dart';
 import 'widgets/question_view.dart';
@@ -12,7 +16,12 @@ import 'widgets/question_grid.dart';
 
 class TestScreen extends ConsumerStatefulWidget {
   final String testId;
-  const TestScreen({super.key, required this.testId});
+
+  /// In-memory session (adaptive practice). When provided, the screen runs
+  /// this test directly instead of loading [testId] from the database.
+  final Test? test;
+
+  const TestScreen({super.key, required this.testId, this.test});
 
   @override
   ConsumerState<TestScreen> createState() => _TestScreenState();
@@ -27,6 +36,13 @@ class _TestScreenState extends ConsumerState<TestScreen> {
   bool _showGrid = false;
   bool _isLoading = true;
 
+  String? _attemptId;
+  DateTime _sessionStart = DateTime.now();
+  DateTime _questionShownAt = DateTime.now();
+  bool _submitting = false;
+
+  static const int _marksPerQuestion = 4;
+
   @override
   void initState() {
     super.initState();
@@ -37,12 +53,36 @@ class _TestScreenState extends ConsumerState<TestScreen> {
   Future<void> _loadTest() async {
     try {
       final repo = ref.read(testRepositoryProvider);
-      final test = await repo.getTestWithQuestions(widget.testId);
+      // In-memory adaptive session takes precedence over a DB load.
+      final test = widget.test ?? await repo.getTestWithQuestions(widget.testId);
+
+      // The student is practising now — cancel any pending skip nudge.
+      NotificationService.instance.cancelPracticeReminder();
+
+      // Create a real attempt up front so submission can persist + analyze.
+      final userId = ref.read(supabaseClientProvider).auth.currentUser?.id;
+      String? attemptId;
+      if (userId != null && test.questions.isNotEmpty) {
+        try {
+          final attempt = await repo.createAttempt(
+            userId: userId,
+            testId: test.id,
+            totalMarks: test.questions.length * _marksPerQuestion,
+          );
+          attemptId = attempt.id;
+        } catch (_) {
+          // Offline / RLS — keep the test runnable; submission will no-op.
+        }
+      }
+
       if (mounted) {
         setState(() {
           _test = test;
+          _attemptId = attemptId;
           _timeRemaining = test.duration;
           _isLoading = false;
+          _sessionStart = DateTime.now();
+          _questionShownAt = DateTime.now();
           for (final q in test.questions) {
             _answers[q.id] = UserAnswer(questionId: q.id);
           }
@@ -57,6 +97,27 @@ class _TestScreenState extends ConsumerState<TestScreen> {
         );
       }
     }
+  }
+
+  /// Accrue elapsed time onto the question being left, then reset the clock.
+  void _accrueTime() {
+    final test = _test;
+    if (test == null || _currentIndex >= test.questions.length) return;
+    final q = test.questions[_currentIndex];
+    final secs = DateTime.now().difference(_questionShownAt).inSeconds;
+    final a = _answers[q.id];
+    if (a != null && secs > 0) {
+      _answers[q.id] = a.copyWith(timeTaken: a.timeTaken + Duration(seconds: secs));
+    }
+    _questionShownAt = DateTime.now();
+  }
+
+  void _navigateTo(int index) {
+    _accrueTime();
+    setState(() {
+      _currentIndex = index;
+      _showGrid = false;
+    });
   }
 
   void _startTimer() {
@@ -94,17 +155,13 @@ class _TestScreenState extends ConsumerState<TestScreen> {
     });
   }
 
-  void _goToQuestion(int index) {
-    setState(() {
-      _currentIndex = index;
-      _showGrid = false;
-    });
-  }
+  void _goToQuestion(int index) => _navigateTo(index);
 
-  void _submitTest() {
+  Future<void> _submitTest() async {
     final test = _test;
-    if (test == null) return;
-    showDialog(
+    if (test == null || _submitting) return;
+
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -114,19 +171,79 @@ class _TestScreenState extends ConsumerState<TestScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Continue Test'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              context.go('/results/attempt_001');
-            },
+            onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Submit'),
           ),
         ],
       ),
     );
+    if (confirmed != true) return;
+
+    _accrueTime();
+    _timer?.cancel();
+    setState(() => _submitting = true);
+
+    final userId = ref.read(supabaseClientProvider).auth.currentUser?.id;
+    final attemptId = _attemptId;
+    if (attemptId == null || userId == null) {
+      // No persisted attempt (offline / not signed in) — leave gracefully.
+      if (mounted) context.go('/');
+      return;
+    }
+
+    // Grade locally for the score + AI-question usage stats.
+    int correct = 0;
+    for (final q in test.questions) {
+      final a = _answers[q.id];
+      if (a != null &&
+          a.isAnswered &&
+          a.selectedAnswer!.trim().toLowerCase() ==
+              q.correctAnswer.trim().toLowerCase()) {
+        correct++;
+      }
+    }
+
+    final attempt = TestAttempt(
+      id: attemptId,
+      userId: userId,
+      testId: test.id,
+      startTime: _sessionStart,
+      endTime: DateTime.now(),
+      answers: _answers,
+      score: correct * _marksPerQuestion,
+      totalMarks: test.questions.length * _marksPerQuestion,
+      status: TestAttemptStatus.submitted,
+    );
+
+    try {
+      // Persist + run the local engine + the server weakness engine.
+      await ref.read(testRepositoryProvider).submitAndAnalyze(
+            attempt: attempt,
+            questions: test.questions,
+            testName: test.name,
+            analyticsEngine: ref.read(analyticsEngineProvider),
+          );
+
+      // Feed the probation lifecycle for any AI-generated questions served.
+      final practice = ref.read(practiceRepositoryProvider);
+      for (final q in test.questions) {
+        if (!q.id.startsWith('gen_')) continue;
+        final a = _answers[q.id];
+        if (a == null || !a.isAnswered) continue;
+        final ok = a.selectedAnswer!.trim().toLowerCase() ==
+            q.correctAnswer.trim().toLowerCase();
+        practice.recordServed(q.id, correct: ok);
+      }
+    } catch (_) {
+      // Submission failed — the attempt row still exists; results may be partial.
+    }
+
+    ref.read(activePracticeTestProvider.notifier).state = null;
+    if (mounted) context.go('/results/$attemptId');
   }
 
   AnswerStatus _statusFor(int index) {
@@ -156,6 +273,21 @@ class _TestScreenState extends ConsumerState<TestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_submitting) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text('Analyzing your test…', style: AppTypography.bodyMedium),
+            ],
+          ),
+        ),
+      );
+    }
     if (_isLoading || _test == null) {
       return Scaffold(
         backgroundColor: AppColors.background,
@@ -247,8 +379,7 @@ class _TestScreenState extends ConsumerState<TestScreen> {
                     children: [
                       if (_currentIndex > 0)
                         OutlinedButton.icon(
-                          onPressed: () =>
-                              setState(() => _currentIndex--),
+                          onPressed: () => _navigateTo(_currentIndex - 1),
                           icon: const Icon(Icons.arrow_back_rounded, size: 18),
                           label: const Text('Previous'),
                           style: OutlinedButton.styleFrom(
@@ -261,8 +392,7 @@ class _TestScreenState extends ConsumerState<TestScreen> {
                       const Spacer(),
                       if (_currentIndex < test.totalQuestions - 1)
                         ElevatedButton.icon(
-                          onPressed: () =>
-                              setState(() => _currentIndex++),
+                          onPressed: () => _navigateTo(_currentIndex + 1),
                           icon: const Text('Next'),
                           label: const Icon(Icons.arrow_forward_rounded, size: 18),
                           style: ElevatedButton.styleFrom(

@@ -11,6 +11,8 @@ import '../../../core/widgets/progress_bar.dart';
 import '../../../core/widgets/subject_badge.dart';
 import '../data/subjects_providers.dart';
 import '../domain/subject_models.dart';
+import '../../../shared/models/enums.dart';
+import '../../practice/data/practice_providers.dart';
 
 class ChapterDetailScreen extends ConsumerWidget {
   final String subjectId;
@@ -180,13 +182,60 @@ class _ChapterFocalTile extends StatelessWidget {
 }
 
 /// Bottom sheet showing a chapter's topics + a Practice Now action.
-class _ChapterSheet extends StatelessWidget {
+class _ChapterSheet extends ConsumerStatefulWidget {
   final Subject subject;
   final Chapter chapter;
   const _ChapterSheet({required this.subject, required this.chapter});
 
   @override
+  ConsumerState<_ChapterSheet> createState() => _ChapterSheetState();
+}
+
+class _ChapterSheetState extends ConsumerState<_ChapterSheet> {
+  bool _busy = false;
+
+  Future<void> _startPractice() async {
+    setState(() => _busy = true);
+    try {
+      final chapter = widget.chapter;
+      // Derive difficulty from the chapter's strength / completion.
+      final difficulty = chapter.strength == TopicStrength.strong
+          ? 'hard'
+          : chapter.strength == TopicStrength.weak
+              ? 'easy'
+              : 'medium';
+      final test = await ref.read(practiceRepositoryProvider).moreLikeThis(
+            chapterId: chapter.id,
+            currentDifficulty: difficulty,
+            delta: 0,
+          );
+      if (!mounted) return;
+      if (test.questions.isEmpty) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No practice questions available for this chapter yet.')),
+        );
+        return;
+      }
+      ref.read(activePracticeTestProvider.notifier).state = test;
+      Navigator.of(context).pop();
+      context.push('/practice/session');
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start practice: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final subject = widget.subject;
+    final chapter = widget.chapter;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -248,11 +297,14 @@ class _ChapterSheet extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  context.pop();
-                  context.push('/test-selection');
-                },
-                child: const Text('Practice Now'),
+                onPressed: _busy ? null : _startPractice,
+                child: _busy
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Practice Now'),
               ),
             ),
           ],

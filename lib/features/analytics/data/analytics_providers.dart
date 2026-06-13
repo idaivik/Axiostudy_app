@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/supabase/supabase_providers.dart';
 import '../../auth/data/auth_providers.dart';
 import '../domain/analytics_models.dart';
+import '../domain/chapter_insight_models.dart';
 import '../domain/chart_data_models.dart';
 import 'analytics_repository.dart';
 import 'analytics_engine.dart';
@@ -86,6 +87,57 @@ final recommendationsProvider =
 
   final repo = ref.watch(analyticsRepositoryProvider);
   return repo.getRecommendations(userId);
+});
+
+// ─── Chapter Insights (server weakness engine, Phase 1/3) ───
+
+/// AI-enriched per-chapter insights for a specific attempt.
+final chapterInsightsProvider =
+    FutureProvider.family<List<ChapterInsight>, String>(
+        (ref, attemptId) async {
+  final repo = ref.watch(analyticsRepositoryProvider);
+  return repo.getChapterInsightsForAttempt(attemptId);
+});
+
+/// All persistent per-chapter mastery rows for the current user.
+final weakChaptersProvider =
+    FutureProvider<List<WeakChapter>>((ref) async {
+  final client = ref.watch(supabaseClientProvider);
+  final userId = client.auth.currentUser?.id;
+  if (userId == null) return [];
+  final repo = ref.watch(analyticsRepositoryProvider);
+  return repo.getWeakChapters(userId);
+});
+
+/// Top-3 weak chapters (weakest first) — the adaptive practice queue.
+final topWeakChaptersProvider =
+    FutureProvider<List<WeakChapter>>((ref) async {
+  final client = ref.watch(supabaseClientProvider);
+  final userId = client.auth.currentUser?.id;
+  if (userId == null) return [];
+  final repo = ref.watch(analyticsRepositoryProvider);
+  return repo.getTopWeakChapters(userId, limit: 3);
+});
+
+/// Chapter-analytics history for one chapter — the Recovery Tracker source.
+final chapterHistoryProvider =
+    FutureProvider.family<List<ChapterInsight>, String>(
+        (ref, chapterId) async {
+  final client = ref.watch(supabaseClientProvider);
+  final userId = client.auth.currentUser?.id;
+  if (userId == null) return [];
+  final repo = ref.watch(analyticsRepositoryProvider);
+  return repo.getChapterHistory(userId: userId, chapterId: chapterId);
+});
+
+/// Before → after recovery per chapter (chapters seen in 2+ tests).
+final recoveryTrackingProvider =
+    FutureProvider<List<ChapterRecovery>>((ref) async {
+  final client = ref.watch(supabaseClientProvider);
+  final userId = client.auth.currentUser?.id;
+  if (userId == null) return [];
+  final repo = ref.watch(analyticsRepositoryProvider);
+  return repo.getRecoveryTracking(userId);
 });
 
 /// Subject mastery percentages — computed from topic performance.

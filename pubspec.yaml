@@ -38,6 +38,10 @@ dependencies:
   url_launcher: ^6.3.1
   supabase_flutter: ^2.12.4
 
+  # Local notifications (skip-practice reminders — no Firebase/server)
+  flutter_local_notifications: ^17.2.4
+  timezone: ^0.9.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
