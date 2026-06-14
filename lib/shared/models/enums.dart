@@ -59,6 +59,101 @@ enum TestAttemptStatus {
   analyzed,
 }
 
+/// Target competitive exam the student is preparing for.
+/// Persisted to `profiles.exam_type` as the lowercase enum name ('jee' | 'neet').
+enum ExamType {
+  jee,
+  neet;
+
+  String get label {
+    switch (this) {
+      case ExamType.jee:
+        return 'JEE';
+      case ExamType.neet:
+        return 'NEET';
+    }
+  }
+
+  String get fullName {
+    switch (this) {
+      case ExamType.jee:
+        return 'Joint Entrance Examination';
+      case ExamType.neet:
+        return 'National Eligibility cum Entrance Test';
+    }
+  }
+
+  String get tagline {
+    switch (this) {
+      case ExamType.jee:
+        return 'Engineering • Physics, Chemistry, Maths';
+      case ExamType.neet:
+        return 'Medical • Physics, Chemistry, Biology';
+    }
+  }
+
+  /// Subjects covered by this exam.
+  List<SubjectType> get subjects {
+    switch (this) {
+      case ExamType.jee:
+        return const [
+          SubjectType.physics,
+          SubjectType.chemistry,
+          SubjectType.mathematics,
+        ];
+      case ExamType.neet:
+        return const [
+          SubjectType.physics,
+          SubjectType.chemistry,
+          SubjectType.biology,
+        ];
+    }
+  }
+
+  static ExamType? fromName(String? name) {
+    switch (name) {
+      case 'jee':
+        return ExamType.jee;
+      case 'neet':
+        return ExamType.neet;
+      default:
+        return null;
+    }
+  }
+}
+
+/// Lifecycle of the recurring mandate / trial. Mirrors
+/// `profiles.subscription_status` (see migration comments).
+enum SubscriptionStatus {
+  none,
+  trialing,
+  active,
+  cancelled,
+  pastDue;
+
+  /// Value persisted to the DB (`past_due` for [pastDue], lowercase name otherwise).
+  String get dbValue => this == SubscriptionStatus.pastDue ? 'past_due' : name;
+
+  /// True while the user still has access (trial running or billing live).
+  bool get isEntitled =>
+      this == SubscriptionStatus.trialing || this == SubscriptionStatus.active;
+
+  static SubscriptionStatus fromDb(String? value) {
+    switch (value) {
+      case 'trialing':
+        return SubscriptionStatus.trialing;
+      case 'active':
+        return SubscriptionStatus.active;
+      case 'cancelled':
+        return SubscriptionStatus.cancelled;
+      case 'past_due':
+        return SubscriptionStatus.pastDue;
+      default:
+        return SubscriptionStatus.none;
+    }
+  }
+}
+
 /// Subscription plan tiers.
 enum SubscriptionTier {
   free,

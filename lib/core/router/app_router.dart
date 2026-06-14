@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../supabase/supabase_providers.dart';
 import '../../features/auth/data/auth_providers.dart';
+import '../../features/auth/domain/user_model.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/signup_screen.dart';
+import '../../features/onboarding/data/onboarding_providers.dart';
+import '../../features/onboarding/presentation/splash_screen.dart';
+import '../../features/onboarding/presentation/exam_selection_screen.dart';
+import '../../features/onboarding/presentation/profiling_screen.dart';
+import '../../features/subscription/presentation/paywall_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/test/presentation/test_screen.dart';
 import '../../features/results/presentation/results_screen.dart';
@@ -20,21 +28,51 @@ import '../widgets/bottom_nav_bar.dart';
 import '../widgets/gradient_background.dart';
 import 'swipe_nav_provider.dart';
 
+/// Auth screens reachable while signed out.
+const Set<String> _authRoutes = {'/login', '/signup'};
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final isLoggedIn = ref.watch(isLoggedInProvider);
+  // Re-run redirect whenever auth state or the loaded profile changes, without
+  // rebuilding the whole router (which would reset navigation state).
+  final refresh = ValueNotifier<int>(0);
+  ref.listen(isLoggedInProvider, (_, _) => refresh.value++);
+  ref.listen(currentUserProvider, (_, _) => refresh.value++);
+  ref.onDispose(refresh.dispose);
+
+  // Check the persisted session synchronously so returning users land on the
+  // splash (then their gate) instead of flashing the login screen first.
+  final hasSession =
+      ref.read(supabaseClientProvider).auth.currentSession != null;
+  final initialLoggedIn = ref.read(guestModeProvider) || hasSession;
 
   return GoRouter(
-    initialLocation: isLoggedIn ? '/' : '/login',
-    redirect: (context, state) {
-      final loggingIn = state.matchedLocation == '/login';
-      if (!isLoggedIn && !loggingIn) return '/login';
-      if (isLoggedIn && loggingIn) return '/';
-      return null;
-    },
+    initialLocation: initialLoggedIn ? '/splash' : '/login',
+    refreshListenable: refresh,
+    redirect: (context, state) => _onboardingGuard(ref, state),
     routes: [
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/signup',
+        builder: (context, state) => const SignUpScreen(),
+      ),
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding/exam',
+        builder: (context, state) => const ExamSelectionScreen(),
+      ),
+      GoRoute(
+        path: '/paywall',
+        builder: (context, state) => const PaywallScreen(),
+      ),
+      GoRoute(
+        path: '/onboarding/profiling',
+        builder: (context, state) => const ProfilingScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) =>
@@ -139,6 +177,61 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// Enforces the signup funnel: signed-out → auth screens; signed-in → the next
+/// required onboarding gate (exam → paywall → profiling) until complete.
+String? _onboardingGuard(Ref ref, GoRouterState state) {
+  final loc = state.matchedLocation;
+  final loggedIn = ref.read(isLoggedInProvider);
+
+  // ── Signed out ──────────────────────────────────────────────────────────────
+  if (!loggedIn) {
+    return _authRoutes.contains(loc) ? null : '/login';
+  }
+
+  // ── Guest / test bypass ─────────────────────────────────────────────────────
+  if (ref.read(guestModeProvider)) {
+    if (_authRoutes.contains(loc) ||
+        loc == '/splash' ||
+        kOnboardingRoutes.contains(loc)) {
+      return '/';
+    }
+    return null;
+  }
+
+  // ── Profile still loading ───────────────────────────────────────────────────
+  final userAsync = ref.read(currentUserProvider);
+  if (userAsync.isLoading) {
+    // Keep user on splash while we wait; don't yank them off a funnel screen.
+    if (loc == '/splash' || kOnboardingRoutes.contains(loc)) return null;
+    if (_authRoutes.contains(loc)) return '/splash';
+    // Already inside the app — let them stay while profile refreshes.
+    return null;
+  }
+
+  final UserModel? user = userAsync.valueOrNull;
+  if (user == null) {
+    // Resolved with no profile (fetch error / session race) — send to login
+    // so the user can re-authenticate rather than being stuck forever.
+    return _authRoutes.contains(loc) ? null : '/login';
+  }
+
+  // ── Profile loaded — enforce onboarding funnel ───────────────────────────────
+  final step = onboardingStepFor(user);
+  if (step != OnboardingStep.done) {
+    // Allow the correct funnel screen; redirect to it from everywhere else
+    // (including /splash, so the splash is never a dead-end).
+    return loc == step.route ? null : step.route;
+  }
+
+  // ── Fully onboarded — bounce out of auth/splash/funnel routes ───────────────
+  if (_authRoutes.contains(loc) ||
+      loc == '/splash' ||
+      kOnboardingRoutes.contains(loc)) {
+    return '/';
+  }
+  return null;
+}
 
 /// Shell scaffold with bottom nav, gradient background, and swipe navigation.
 class _ShellScaffold extends ConsumerStatefulWidget {

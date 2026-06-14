@@ -28,9 +28,17 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 final authStateProvider = StreamProvider<bool>((ref) {
   final client = ref.watch(supabaseClientProvider);
-  return client.auth.onAuthStateChange.map((authState) {
-    return authState.session != null;
-  });
+  // De-duplicate: token-refresh and other no-op events fire onAuthStateChange
+  // repeatedly with the same session state, causing currentUserProvider to
+  // re-run in a loop. Only emit when the signed-in boolean actually changes.
+  bool? last;
+  return client.auth.onAuthStateChange
+      .map((authState) => authState.session != null)
+      .where((isLoggedIn) {
+        if (isLoggedIn == last) return false;
+        last = isLoggedIn;
+        return true;
+      });
 });
 
 /// Logged in if Supabase session exists OR guest mode is active.
@@ -53,20 +61,21 @@ final currentUserProvider = FutureProvider<UserModel?>((ref) async {
 
   try {
     final repo = ref.watch(authRepositoryProvider);
-    final profile = await repo.getProfile(authUser.id);
+    // Guard against a hung request leaving the router stuck on the splash gate.
+    final profile = await repo
+        .getProfile(authUser.id)
+        .timeout(const Duration(seconds: 12));
     // Use auth.users email if profile doesn't have one (e.g. legacy row)
     if (profile.email.isEmpty && authUser.email != null) {
       return profile.copyWith(email: authUser.email!);
     }
     return profile;
   } catch (e) {
-    // Return a dummy profile with just the email so the UI doesn't crash on null
-    return UserModel(
-      id: authUser.id,
-      email: authUser.email ?? 'No email',
-      name: 'User',
-      createdAt: DateTime.now(),
-    );
+    // On any error (network, timeout, missing row) return null so the router
+    // guard falls through to /login rather than returning a dummy profile with
+    // default fields (no examType, no subscription) which confuses the
+    // onboarding gate and causes an infinite exam→paywall redirect loop.
+    return null;
   }
 });
 

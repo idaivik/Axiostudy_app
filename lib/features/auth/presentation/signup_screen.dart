@@ -6,22 +6,27 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/axio_button.dart';
 import '../data/auth_providers.dart';
+import '../data/auth_repository.dart';
 
-class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+/// Account creation — the entry point of the signup funnel. On success the
+/// router advances the user to exam-target selection.
+class SignUpScreen extends ConsumerStatefulWidget {
+  const SignUpScreen({super.key});
 
   @override
-  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<SignUpScreen> createState() => _SignUpScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen>
+class _SignUpScreenState extends ConsumerState<SignUpScreen>
     with TickerProviderStateMixin {
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _isLoading = false;
-  bool _isGuestLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  String? _infoMessage;
 
   late AnimationController _fadeController;
   late AnimationController _slideController;
@@ -74,6 +79,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _fadeController.dispose();
@@ -82,44 +88,57 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
+  Future<void> _handleSignUp() async {
+    final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Please enter your email and password');
+
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Please fill in all the fields.');
       return;
     }
-    setState(() { _isLoading = true; _errorMessage = null; });
+    if (!email.contains('@') || !email.contains('.')) {
+      setState(() => _errorMessage = 'Please enter a valid email address.');
+      return;
+    }
+    if (password.length < 6) {
+      setState(() => _errorMessage = 'Password must be at least 6 characters.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _infoMessage = null;
+    });
+
     try {
       final repo = ref.read(authRepositoryProvider);
-      await repo.signInWithEmail(email, password);
-      if (mounted) context.go('/');
-    } catch (e) {
-      String msg = 'Login failed. Please check your credentials.';
-      final s = e.toString();
-      if (s.contains('Invalid login credentials')) {
-        msg = 'Invalid email or password.';
-      } else if (s.contains('Email not confirmed')) {
-        msg = 'Please confirm your email first.';
-      } else if (s.contains('network')) {
-        msg = 'Network error. Check your connection.';
+      await repo.signUpWithEmail(name: name, email: email, password: password);
+      ref.invalidate(currentUserProvider);
+      // Router gating takes over and routes to exam selection.
+      if (mounted) context.go('/onboarding/exam');
+    } on EmailConfirmationRequired {
+      if (mounted) {
+        setState(() {
+          _infoMessage =
+              'Account created. Please confirm your email, then log in to continue.';
+        });
       }
-      setState(() => _errorMessage = msg);
+    } catch (e) {
+      final s = e.toString();
+      String msg = 'Could not create your account. Please try again.';
+      if (s.contains('already registered') ||
+          s.contains('User already registered')) {
+        msg = 'An account with this email already exists. Try logging in.';
+      } else if (s.contains('weak') || s.contains('Password')) {
+        msg = 'Please choose a stronger password.';
+      } else if (s.contains('network') || s.contains('SocketException')) {
+        msg = 'Network error. Check your connection and try again.';
+      }
+      if (mounted) setState(() => _errorMessage = msg);
     } finally {
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _handleTestLogin() async {
-    setState(() { _isGuestLoading = true; _errorMessage = null; });
-    try {
-      final repo = ref.read(authRepositoryProvider);
-      await repo.signInWithEmail('test@axiostudy.com', 'Test@1234');
-      if (mounted) context.go('/');
-    } catch (e) {
-      setState(() => _errorMessage = 'Test profile login failed. Please try again.');
-    } finally {
-      if (mounted) setState(() => _isGuestLoading = false);
     }
   }
 
@@ -134,7 +153,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             children: [
               const SizedBox(height: 36),
 
-              // Logo
+              // Logo — same as login screen
               FadeTransition(
                 opacity: _logoFadeAnim,
                 child: ScaleTransition(
@@ -181,7 +200,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
               const SizedBox(height: 28),
 
-              // Login card
+              // Sign-up card — same structure as login card
               FadeTransition(
                 opacity: _fadeAnim,
                 child: SlideTransition(
@@ -202,10 +221,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Welcome back', style: AppTypography.heading2),
+                        Text('Create your account', style: AppTypography.heading2),
                         const SizedBox(height: 4),
                         Text(
-                          'Login to continue your preparation',
+                          'Start your AI-powered preparation Today!',
                           style: AppTypography.bodyMedium,
                         ),
                         const SizedBox(height: 20),
@@ -238,6 +257,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           const SizedBox(height: 20),
                         ],
 
+                        if (_infoMessage != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.greenSurface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(LucideIcons.mailCheck, size: 16, color: AppColors.primary),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _infoMessage!,
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+
+                        TextField(
+                          controller: _nameController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            hintText: 'Full name',
+                            prefixIcon: Icon(LucideIcons.user, size: 18),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
                         TextField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
@@ -245,14 +301,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             hintText: 'Email address',
                             prefixIcon: Icon(LucideIcons.mail, size: 18),
                           ),
-                          onSubmitted: (_) => _handleLogin(),
                         ),
                         const SizedBox(height: 14),
                         TextField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
                           decoration: InputDecoration(
-                            hintText: 'Password',
+                            hintText: 'Password (min. 6 characters)',
                             prefixIcon: const Icon(LucideIcons.lock, size: 18),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -260,35 +315,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                 size: 18,
                                 color: AppColors.textLight,
                               ),
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              onPressed: () =>
+                                  setState(() => _obscurePassword = !_obscurePassword),
                             ),
                           ),
-                          onSubmitted: (_) => _handleLogin(),
+                          onSubmitted: (_) => _handleSignUp(),
                         ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () => _showForgotPassword(),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                            ),
-                            child: Text(
-                              'Forgot Password?',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                         SizedBox(
                           width: double.infinity,
                           child: AxioButton(
-                            label: 'Continue',
+                            label: 'Create account',
                             isLoading: _isLoading,
-                            onPressed: _handleLogin,
+                            onPressed: _handleSignUp,
                           ),
                         ),
                       ],
@@ -304,11 +343,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text("Don't have an account? ", style: AppTypography.bodyMedium),
+                    Text('Already have an account? ', style: AppTypography.bodyMedium),
                     GestureDetector(
-                      onTap: () => context.go('/signup'),
+                      onTap: () => context.go('/login'),
                       child: Text(
-                        'Sign up',
+                        'Log in',
                         style: AppTypography.bodyMedium.copyWith(
                           color: AppColors.primary,
                           fontWeight: FontWeight.w600,
@@ -323,43 +362,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
               const SizedBox(height: 12),
 
-              // Test profile — real Supabase sign-in
               FadeTransition(
                 opacity: _fadeAnim,
-                child: GestureDetector(
-                  onTap: _isGuestLoading ? null : _handleTestLogin,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_isGuestLoading)
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.textMedium,
-                            ),
-                          )
-                        else
-                          Icon(LucideIcons.userCheck, size: 16, color: AppColors.textMedium),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Continue as Test Profile',
-                          style: AppTypography.bodyMedium.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textMedium,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: Text(
+                  'By continuing you agree to a 7-day free trial. You can cancel '
+                  'anytime before it ends and you won\'t be charged.',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.caption,
                 ),
               ),
 
@@ -367,39 +376,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showForgotPassword() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Reset Password'),
-        content: const Text(
-          'A password reset link will be sent to your registered email address.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Reset link sent to your email'),
-                  behavior: SnackBarBehavior.floating,
-                  backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              );
-            },
-            child: const Text('Send Link'),
-          ),
-        ],
       ),
     );
   }

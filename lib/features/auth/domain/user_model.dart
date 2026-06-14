@@ -6,8 +6,14 @@ class UserModel {
   final String email;
   final String name;
   final String? grade;
+  final ExamType? examType;
+  final bool onboardingCompleted;
   final SubscriptionTier subscriptionTier;
+  final SubscriptionStatus subscriptionStatus;
   final DateTime? subscriptionExpiry;
+  final DateTime? trialEndsAt;
+  final String? razorpayCustomerId;
+  final String? razorpaySubscriptionId;
   final DateTime createdAt;
   final bool hasTakenDiagnostic;
   final int testsCompleted;
@@ -20,8 +26,14 @@ class UserModel {
     required this.email,
     required this.name,
     this.grade,
+    this.examType,
+    this.onboardingCompleted = false,
     this.subscriptionTier = SubscriptionTier.free,
+    this.subscriptionStatus = SubscriptionStatus.none,
     this.subscriptionExpiry,
+    this.trialEndsAt,
+    this.razorpayCustomerId,
+    this.razorpaySubscriptionId,
     required this.createdAt,
     this.hasTakenDiagnostic = false,
     this.testsCompleted = 0,
@@ -30,6 +42,9 @@ class UserModel {
     this.topicsMastered = 0,
   });
 
+  /// Whether the user still has app access (inside trial or actively billed).
+  bool get isEntitled => subscriptionStatus.isEntitled;
+
   /// Create from Supabase `profiles` row.
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
@@ -37,10 +52,19 @@ class UserModel {
       email: json['email'] as String? ?? '',
       name: json['name'] as String? ?? 'User',
       grade: json['grade'] as String?,
+      examType: ExamType.fromName(json['exam_type'] as String?),
+      onboardingCompleted: json['onboarding_completed'] as bool? ?? false,
       subscriptionTier: _parseTier(json['subscription_tier'] as String?),
+      subscriptionStatus:
+          SubscriptionStatus.fromDb(json['subscription_status'] as String?),
       subscriptionExpiry: json['subscription_expiry'] != null
           ? DateTime.parse(json['subscription_expiry'] as String)
           : null,
+      trialEndsAt: json['trial_ends_at'] != null
+          ? DateTime.parse(json['trial_ends_at'] as String)
+          : null,
+      razorpayCustomerId: json['razorpay_customer_id'] as String?,
+      razorpaySubscriptionId: json['razorpay_subscription_id'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       hasTakenDiagnostic: json['has_taken_diagnostic'] as bool? ?? false,
       testsCompleted: json['tests_completed'] as int? ?? 0,
@@ -57,8 +81,14 @@ class UserModel {
       'email': email,
       'name': name,
       'grade': grade,
+      'exam_type': examType?.name,
+      'onboarding_completed': onboardingCompleted,
       'subscription_tier': subscriptionTier.name,
+      'subscription_status': subscriptionStatus.dbValue,
       'subscription_expiry': subscriptionExpiry?.toIso8601String(),
+      'trial_ends_at': trialEndsAt?.toIso8601String(),
+      'razorpay_customer_id': razorpayCustomerId,
+      'razorpay_subscription_id': razorpaySubscriptionId,
       'has_taken_diagnostic': hasTakenDiagnostic,
       'tests_completed': testsCompleted,
       'average_score': averageScore,
@@ -85,8 +115,14 @@ class UserModel {
     String? email,
     String? name,
     String? grade,
+    ExamType? examType,
+    bool? onboardingCompleted,
     SubscriptionTier? subscriptionTier,
+    SubscriptionStatus? subscriptionStatus,
     DateTime? subscriptionExpiry,
+    DateTime? trialEndsAt,
+    String? razorpayCustomerId,
+    String? razorpaySubscriptionId,
     DateTime? createdAt,
     bool? hasTakenDiagnostic,
     int? testsCompleted,
@@ -99,8 +135,15 @@ class UserModel {
       email: email ?? this.email,
       name: name ?? this.name,
       grade: grade ?? this.grade,
+      examType: examType ?? this.examType,
+      onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       subscriptionTier: subscriptionTier ?? this.subscriptionTier,
+      subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
       subscriptionExpiry: subscriptionExpiry ?? this.subscriptionExpiry,
+      trialEndsAt: trialEndsAt ?? this.trialEndsAt,
+      razorpayCustomerId: razorpayCustomerId ?? this.razorpayCustomerId,
+      razorpaySubscriptionId:
+          razorpaySubscriptionId ?? this.razorpaySubscriptionId,
       createdAt: createdAt ?? this.createdAt,
       hasTakenDiagnostic: hasTakenDiagnostic ?? this.hasTakenDiagnostic,
       testsCompleted: testsCompleted ?? this.testsCompleted,
