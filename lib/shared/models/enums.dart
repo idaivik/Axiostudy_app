@@ -138,6 +138,22 @@ enum SubscriptionStatus {
   bool get isEntitled =>
       this == SubscriptionStatus.trialing || this == SubscriptionStatus.active;
 
+  /// Human-readable status for the profile / subscription-management UI.
+  String get label {
+    switch (this) {
+      case SubscriptionStatus.none:
+        return 'Not subscribed';
+      case SubscriptionStatus.trialing:
+        return 'Free trial';
+      case SubscriptionStatus.active:
+        return 'Active';
+      case SubscriptionStatus.cancelled:
+        return 'Cancelled';
+      case SubscriptionStatus.pastDue:
+        return 'Payment issue';
+    }
+  }
+
   static SubscriptionStatus fromDb(String? value) {
     switch (value) {
       case 'trialing':

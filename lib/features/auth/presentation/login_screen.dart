@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,7 +20,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _isGuestLoading = false;
+  bool _isGuestLoading = false; // kept for spinner UI but resolves instantly
   bool _obscurePassword = true;
   String? _errorMessage;
 
@@ -112,15 +113,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Future<void> _handleTestLogin() async {
     setState(() { _isGuestLoading = true; _errorMessage = null; });
-    try {
-      final repo = ref.read(authRepositoryProvider);
-      await repo.signInWithEmail('test@axiostudy.com', 'Test@1234');
-      if (mounted) context.go('/');
-    } catch (e) {
-      setState(() => _errorMessage = 'Test profile login failed. Please try again.');
-    } finally {
-      if (mounted) setState(() => _isGuestLoading = false);
-    }
+    // Small delay so the spinner is visible before the route transition.
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+    // Enable in-memory guest mode — no Supabase call needed.
+    ref.read(guestModeProvider.notifier).state = true;
+    setState(() => _isGuestLoading = false);
+    context.go('/');
   }
 
   @override
@@ -323,7 +322,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
               const SizedBox(height: 12),
 
-              // Test profile — real Supabase sign-in
+              // Test profile — DEBUG BUILDS ONLY. This grants a hardcoded
+              // premium, fully-onboarded guest profile (see _guestProfile) and
+              // bypasses both auth and the paywall, so it must never ship in a
+              // release build.
+              if (kDebugMode)
               FadeTransition(
                 opacity: _fadeAnim,
                 child: GestureDetector(

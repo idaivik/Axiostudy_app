@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/billing/revenuecat.dart';
 import '../../../shared/models/enums.dart';
 import '../domain/user_model.dart';
 
@@ -79,25 +80,28 @@ class AuthRepository {
         .eq('id', userId);
   }
 
-  /// Persist the activated trial / recurring mandate returned by the payment
-  /// step. Writes only the subscription columns so other profile fields are
-  /// left untouched.
-  Future<void> activateTrial(
+  /// Persist the entitlement returned by a store purchase / restore. Writes only
+  /// the subscription columns so other profile fields are left untouched. The
+  /// RevenueCat webhook is the long-term source of truth; this is the optimistic
+  /// client-side write that clears the paywall right after purchase.
+  Future<void> activateSubscription(
     String userId, {
     required SubscriptionTier tier,
     required SubscriptionStatus status,
-    required DateTime trialEndsAt,
+    DateTime? trialEndsAt,
     required DateTime subscriptionExpiry,
-    String? razorpayCustomerId,
-    String? razorpaySubscriptionId,
+    String? platform,
+    String? storeProductId,
+    String? storeTransactionId,
   }) async {
     await _client.from('profiles').update({
       'subscription_tier': tier.name,
       'subscription_status': status.dbValue,
-      'trial_ends_at': trialEndsAt.toIso8601String(),
+      'trial_ends_at': trialEndsAt?.toIso8601String(),
       'subscription_expiry': subscriptionExpiry.toIso8601String(),
-      'razorpay_customer_id': razorpayCustomerId,
-      'razorpay_subscription_id': razorpaySubscriptionId,
+      'subscription_platform': platform,
+      'store_product_id': storeProductId,
+      'store_transaction_id': storeTransactionId,
     }).eq('id', userId);
   }
 
@@ -109,8 +113,10 @@ class AuthRepository {
     await _client.from('profiles').update(update).eq('id', userId);
   }
 
-  /// Sign out the current user.
+  /// Sign out the current user. Also detaches RevenueCat so a subsequent login
+  /// on the same device doesn't inherit this user's entitlements.
   Future<void> signOut() async {
+    await RevenueCat.logoutBestEffort();
     await _client.auth.signOut();
   }
 

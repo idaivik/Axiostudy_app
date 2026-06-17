@@ -40,11 +40,25 @@ const Set<String> kOnboardingRoutes = {
   '/onboarding/profiling',
 };
 
-/// Resolves the next gate from the profile. Order matters: exam target →
-/// paywall/trial → AI profiling → done.
+/// Resolves the next gate from the profile.
+///
+/// Brand-new accounts run the funnel in order: exam target → paywall/trial → AI
+/// profiling → done. (Completing profiling is what flips `onboarding_completed`
+/// to true.)
+///
+/// The paid-access gate is enforced on **every** user, not just new ones: an
+/// already-onboarded account whose subscription has lapsed
+/// (`!user.hasActiveAccess` — e.g. `subscription_status = 'none'`, or a
+/// cancelled/past-due period that has elapsed) is sent back to the paywall (a
+/// soft re-paywall) until they re-subscribe or restore. A still-entitled
+/// returning user — including one who cancelled but is inside their paid period —
+/// goes straight to `done` and is never bounced. The order matters: the
+/// entitlement check sits before the `onboarding_completed` check so lapses
+/// re-lock the app, while a re-subscribe doesn't drag an onboarded user back
+/// through profiling.
 OnboardingStep onboardingStepFor(UserModel user) {
   if (user.examType == null) return OnboardingStep.exam;
-  if (!user.isEntitled) return OnboardingStep.paywall;
+  if (!user.hasActiveAccess) return OnboardingStep.paywall;
   if (!user.onboardingCompleted) return OnboardingStep.profiling;
   return OnboardingStep.done;
 }

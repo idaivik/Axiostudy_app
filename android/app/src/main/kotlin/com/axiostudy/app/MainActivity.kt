@@ -1,4 +1,4 @@
-package com.axiostudy.axiostudy_app
+package com.axiostudy.app
 
 import io.flutter.embedding.android.FlutterActivity
 

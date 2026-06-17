@@ -1,12 +1,18 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../core/billing/revenuecat.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/animations.dart';
 import '../../../core/widgets/gradient_background.dart';
+import '../../../shared/models/enums.dart';
 import '../../auth/data/auth_providers.dart';
+import '../../subscription/data/subscription_providers.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -147,11 +153,7 @@ class ProfileScreen extends ConsumerWidget {
                   icon: LucideIcons.creditCard,
                   label: 'Manage Subscription',
                   sub: user.subscriptionTier.price,
-                  onTap: () => _showInfoDialog(
-                    context,
-                    'Manage Subscription',
-                    'Your current plan: ${user.subscriptionTier.label}\n\nSubscription management will be available at axiostudy.com in a future update.',
-                  ),
+                  onTap: () => _openSubscriptionSheet(context),
                 ),
               ),
               AnimatedEntrance(
@@ -226,6 +228,15 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
+  void _openSubscriptionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _SubscriptionSheet(),
+    );
+  }
+
   void _showInfoDialog(BuildContext context, String title, String message) {
     showDialog(
       context: context,
@@ -255,6 +266,161 @@ class _Stat extends StatelessWidget {
       Text(label, style: AppTypography.caption),
     ],
   );
+}
+
+/// Bottom sheet that surfaces the live subscription state and the two store
+/// actions Apple/Google require to be reachable outside the paywall: **Restore
+/// purchases** and **Manage subscription** (opens the native management URL, or
+/// the platform's generic subscriptions page as a fallback).
+class _SubscriptionSheet extends ConsumerStatefulWidget {
+  const _SubscriptionSheet();
+
+  @override
+  ConsumerState<_SubscriptionSheet> createState() => _SubscriptionSheetState();
+}
+
+class _SubscriptionSheetState extends ConsumerState<_SubscriptionSheet> {
+  bool _restoring = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider).valueOrNull;
+    final tier = user?.subscriptionTier ?? SubscriptionTier.free;
+    final status = user?.subscriptionStatus ?? SubscriptionStatus.none;
+    final renews = user?.subscriptionExpiry ?? user?.trialEndsAt;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        18,
+        20,
+        20 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceDark,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text('Subscription', style: AppTypography.heading2),
+          const SizedBox(height: 16),
+          _row('Plan', '${tier.label} · ${tier.price}'),
+          _row('Status', status.label),
+          if (renews != null)
+            _row(
+              status == SubscriptionStatus.trialing ? 'Trial ends' : 'Renews',
+              _formatDate(renews),
+            ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _restoring ? null : _restore,
+              icon: _restoring
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(LucideIcons.refreshCw, size: 18),
+              label: Text(_restoring ? 'Restoring…' : 'Restore purchases'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _openManagement,
+              icon: const Icon(LucideIcons.externalLink, size: 18),
+              label: const Text('Manage subscription'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Cancellations and refunds are handled by the App Store / Play Store.',
+            style: AppTypography.caption,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: AppTypography.bodyMedium),
+            Text(
+              value,
+              style: AppTypography.bodyLarge.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _restore() async {
+    setState(() => _restoring = true);
+    final result = await ref.read(subscriptionControllerProvider).restore();
+    if (!mounted) return;
+    setState(() => _restoring = false);
+    // Pull the (possibly) updated entitlement back into the UI.
+    ref.invalidate(currentUserProvider);
+    final msg = result.success
+        ? 'Subscription restored.'
+        : (result.errorMessage ?? 'No purchases found to restore.');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: result.success ? AppColors.primary : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _openManagement() async {
+    final managed = await RevenueCat.managementUrl();
+    final fallback = (Platform.isIOS || Platform.isMacOS)
+        ? 'https://apps.apple.com/account/subscriptions'
+        : 'https://play.google.com/store/account/subscriptions';
+    if (!mounted) return;
+    final ok = await launchUrl(
+      Uri.parse(managed ?? fallback),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open subscription settings.')),
+      );
+    }
+  }
+
+  String _formatDate(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final local = d.toLocal();
+    return '${local.day} ${months[local.month - 1]} ${local.year}';
+  }
 }
 
 class _MenuItem extends StatelessWidget {

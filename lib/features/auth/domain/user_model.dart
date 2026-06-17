@@ -12,8 +12,15 @@ class UserModel {
   final SubscriptionStatus subscriptionStatus;
   final DateTime? subscriptionExpiry;
   final DateTime? trialEndsAt;
-  final String? razorpayCustomerId;
-  final String? razorpaySubscriptionId;
+
+  /// Store that processed the subscription ('play_store' / 'app_store').
+  final String? subscriptionPlatform;
+
+  /// Store product identifier of the active subscription.
+  final String? storeProductId;
+
+  /// Latest store transaction id for the subscription.
+  final String? storeTransactionId;
   final DateTime createdAt;
   final bool hasTakenDiagnostic;
   final int testsCompleted;
@@ -32,8 +39,9 @@ class UserModel {
     this.subscriptionStatus = SubscriptionStatus.none,
     this.subscriptionExpiry,
     this.trialEndsAt,
-    this.razorpayCustomerId,
-    this.razorpaySubscriptionId,
+    this.subscriptionPlatform,
+    this.storeProductId,
+    this.storeTransactionId,
     required this.createdAt,
     this.hasTakenDiagnostic = false,
     this.testsCompleted = 0,
@@ -44,6 +52,20 @@ class UserModel {
 
   /// Whether the user still has app access (inside trial or actively billed).
   bool get isEntitled => subscriptionStatus.isEntitled;
+
+  /// Whether the user currently retains paid access — the predicate the app gates
+  /// on (including re-locking a lapsed account). Covers the trial and active
+  /// billing, plus a **cancelled or past-due** subscription that is still inside
+  /// its already-paid period: the store grants access until the period ends, so
+  /// we must too. Returns false once the store marks the subscription expired
+  /// (`none`) or that paid period has elapsed.
+  bool get hasActiveAccess {
+    if (subscriptionStatus.isEntitled) return true; // trialing | active
+    if (subscriptionStatus == SubscriptionStatus.none) return false;
+    // cancelled / past_due — honour whatever paid time is left on the period.
+    final expiry = subscriptionExpiry;
+    return expiry != null && expiry.isAfter(DateTime.now());
+  }
 
   /// Create from Supabase `profiles` row.
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -63,8 +85,9 @@ class UserModel {
       trialEndsAt: json['trial_ends_at'] != null
           ? DateTime.parse(json['trial_ends_at'] as String)
           : null,
-      razorpayCustomerId: json['razorpay_customer_id'] as String?,
-      razorpaySubscriptionId: json['razorpay_subscription_id'] as String?,
+      subscriptionPlatform: json['subscription_platform'] as String?,
+      storeProductId: json['store_product_id'] as String?,
+      storeTransactionId: json['store_transaction_id'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       hasTakenDiagnostic: json['has_taken_diagnostic'] as bool? ?? false,
       testsCompleted: json['tests_completed'] as int? ?? 0,
@@ -87,8 +110,9 @@ class UserModel {
       'subscription_status': subscriptionStatus.dbValue,
       'subscription_expiry': subscriptionExpiry?.toIso8601String(),
       'trial_ends_at': trialEndsAt?.toIso8601String(),
-      'razorpay_customer_id': razorpayCustomerId,
-      'razorpay_subscription_id': razorpaySubscriptionId,
+      'subscription_platform': subscriptionPlatform,
+      'store_product_id': storeProductId,
+      'store_transaction_id': storeTransactionId,
       'has_taken_diagnostic': hasTakenDiagnostic,
       'tests_completed': testsCompleted,
       'average_score': averageScore,
@@ -121,8 +145,9 @@ class UserModel {
     SubscriptionStatus? subscriptionStatus,
     DateTime? subscriptionExpiry,
     DateTime? trialEndsAt,
-    String? razorpayCustomerId,
-    String? razorpaySubscriptionId,
+    String? subscriptionPlatform,
+    String? storeProductId,
+    String? storeTransactionId,
     DateTime? createdAt,
     bool? hasTakenDiagnostic,
     int? testsCompleted,
@@ -141,9 +166,9 @@ class UserModel {
       subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
       subscriptionExpiry: subscriptionExpiry ?? this.subscriptionExpiry,
       trialEndsAt: trialEndsAt ?? this.trialEndsAt,
-      razorpayCustomerId: razorpayCustomerId ?? this.razorpayCustomerId,
-      razorpaySubscriptionId:
-          razorpaySubscriptionId ?? this.razorpaySubscriptionId,
+      subscriptionPlatform: subscriptionPlatform ?? this.subscriptionPlatform,
+      storeProductId: storeProductId ?? this.storeProductId,
+      storeTransactionId: storeTransactionId ?? this.storeTransactionId,
       createdAt: createdAt ?? this.createdAt,
       hasTakenDiagnostic: hasTakenDiagnostic ?? this.hasTakenDiagnostic,
       testsCompleted: testsCompleted ?? this.testsCompleted,
