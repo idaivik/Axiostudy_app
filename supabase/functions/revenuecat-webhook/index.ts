@@ -53,13 +53,17 @@ function constantTimeEquals(a: string, b: string): boolean {
   return diff === 0;
 }
 
-// Map the purchased store product id to our tier. Keep these in sync with
-// TrialPlan.productId in the Flutter app.
+// Map the purchased store product id to our internal tier. Keep in sync with
+// TrialPlan.storeProductId in the Flutter app. This is the SINGLE bridge point
+// between the permanent store id and the consolidated `pro` tier: the Play
+// subscription `axio_premium` (and any per-period variant like
+// `axio_premium:annual`) maps to `pro`. Check `basic` first — the two
+// substrings don't overlap, so order is only for clarity.
 function tierForProduct(productId: string | undefined): string | null {
   if (!productId) return null;
   const id = productId.toLowerCase();
-  if (id.includes("premium")) return "premium";
   if (id.includes("basic")) return "basic";
+  if (id.includes("pro") || id.includes("premium")) return "pro";
   return null;
 }
 

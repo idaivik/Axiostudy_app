@@ -1,83 +1,107 @@
 import '../../../shared/models/enums.dart';
 
-/// The two paid tiers offered on the hard paywall. Both start with a 7-day free
-/// trial — delivered as the store's native "introductory offer" (App Store) /
-/// "free trial offer phase" (Google Play). The store charges ₹0 today and
-/// auto-renews after the trial unless the user cancels.
+/// Billing cadence the user picks on the paywall. Entitlements are **tier-level**
+/// and never inspect this — only the price, the store package, and the paywall
+/// copy vary by period.
+enum BillingPeriod {
+  monthly,
+  annual;
+
+  String get label => this == BillingPeriod.annual ? 'Annual' : 'Monthly';
+}
+
+/// One of the two paid tiers offered on the paywall. Each tier is a **single**
+/// store subscription (`axio_basic` / `axio_premium`) with **monthly and annual
+/// base plans** and a first-purchase 7-day `freetrial` offer on both.
+/// The period is the base plan — not a separate product id — so a tier has one
+/// [storeProductId] plus per-period prices and RevenueCat packages.
 class TrialPlan {
   final SubscriptionTier tier;
   final String name;
-  final int monthlyPriceInr;
   final String tagline;
   final List<String> features;
   final bool isPopular;
 
-  /// Identifier of the RevenueCat **package** inside the current Offering that
-  /// sells this tier. Configure the Offering in the RevenueCat dashboard and
-  /// give each package these identifiers (or rely on the [productId] fallback).
-  final String packageId;
-
-  /// RevenueCat **entitlement** identifier this plan unlocks. The app checks
-  /// `customerInfo.entitlements.active[entitlementId]` to confirm access.
+  /// RevenueCat **entitlement** identifier this tier unlocks (`basic` / `pro`).
+  /// The app checks `customerInfo.entitlements.active[entitlementId]`.
   final String entitlementId;
 
-  /// Store **product** identifier (App Store Connect / Play Console). Used for
-  /// display + as a fallback when matching the package in an Offering.
-  final String productId;
+  /// Permanent store **subscription** identifier (App Store Connect / Play
+  /// Console). The RevenueCat webhook derives the tier from a substring of this
+  /// (`axio_premium` → `pro`). Used for display + as a fallback when matching
+  /// the package in an Offering.
+  final String storeProductId;
+
+  final int monthlyPriceInr;
+  final int annualPriceInr;
 
   const TrialPlan({
     required this.tier,
     required this.name,
-    required this.monthlyPriceInr,
     required this.tagline,
     required this.features,
-    required this.packageId,
     required this.entitlementId,
-    required this.productId,
+    required this.storeProductId,
+    required this.monthlyPriceInr,
+    required this.annualPriceInr,
     this.isPopular = false,
   });
 
-  String get priceLabel => '₹$monthlyPriceInr';
+  int priceInr(BillingPeriod period) =>
+      period == BillingPeriod.annual ? annualPriceInr : monthlyPriceInr;
+
+  String priceLabel(BillingPeriod period) => '₹${priceInr(period)}';
+
+  /// Canonical RevenueCat package identifier for [period]. The store flow matches
+  /// by tier × period; this is the exact-id fast path before the substring/type
+  /// fallbacks in `_findPackage`.
+  String packageId(BillingPeriod period) =>
+      period == BillingPeriod.annual ? r'$rc_annual' : r'$rc_monthly';
+
+  /// Whole-percent saving of the annual plan vs paying 12× monthly (~8%).
+  int get annualSavingsPercent {
+    final twelveMonths = monthlyPriceInr * 12;
+    if (twelveMonths == 0) return 0;
+    return ((twelveMonths - annualPriceInr) / twelveMonths * 100).round();
+  }
 
   static const basic = TrialPlan(
     tier: SubscriptionTier.basic,
     name: 'Basic',
-    monthlyPriceInr: 199,
-    tagline: 'Everything to get started',
-    features: [
-      'Adaptive practice across all chapters',
-      'Diagnostic test + weakness detection',
-      'Daily study plan',
-      'Progress analytics',
-    ],
-    // TODO: keep these in sync with the store + RevenueCat dashboard.
-    packageId: 'basic',
+    tagline: 'See exactly where you\'re weak',
     entitlementId: 'basic',
-    productId: 'axio_basic_monthly',
+    storeProductId: 'axio_basic',
+    monthlyPriceInr: 199,
+    annualPriceInr: 2199,
+    features: [
+      'Adaptive tests + diagnostic from the question bank',
+      'Full analysis — every chart (mistakes, strengths, weak topics, trends)',
+      'Basic study roadmap',
+      'Limited AI test generation + templated question breakdowns',
+    ],
   );
 
-  static const premium = TrialPlan(
-    tier: SubscriptionTier.premium,
-    name: 'Premium',
-    monthlyPriceInr: 299,
-    tagline: 'AI coaching, fully unlocked',
+  static const pro = TrialPlan(
+    tier: SubscriptionTier.pro,
+    name: 'Pro',
+    tagline: 'Your AI coach — interprets, generates, and plans',
     isPopular: true,
+    entitlementId: 'pro',
+    storeProductId: 'axio_premium',
+    monthlyPriceInr: 399,
+    annualPriceInr: 4399,
     features: [
       'Everything in Basic',
-      'AI-driven coaching-synced roadmap',
-      'Unlimited AI question generation',
-      'Priority full-length mock tests',
-      'Deep chapter-level insights',
+      'AI-generated adaptive questions + full AI practice — a fresh session daily',
+      'AI coaching-synced study roadmaps',
+      'AI analysis narrative + advanced breakdowns with formulas to learn',
     ],
-    packageId: 'premium',
-    entitlementId: 'premium',
-    productId: 'axio_premium_monthly',
   );
 
-  static const all = [basic, premium];
+  static const all = [basic, pro];
 
   static TrialPlan forTier(SubscriptionTier tier) =>
-      all.firstWhere((p) => p.tier == tier, orElse: () => premium);
+      all.firstWhere((p) => p.tier == tier, orElse: () => pro);
 
   /// Resolve a plan from the entitlement that backs an active subscription
   /// (used when restoring purchases, where the tier isn't chosen up-front).

@@ -1,23 +1,51 @@
 // generate-questions — AI Weakness-Detection Engine, Phase 2 (the ONLY paid path).
 //
-// Generates fresh practice questions for a weak chapter with the LLM, runs a
-// free code-only structural check, and stores survivors as `probation` in the
-// SHARED question pool so one paid generation benefits every level-matched
-// student. Metered through user_credits (consume_generation_credit RPC); the
-// credit is refunded if nothing usable comes back.
-//
-// Default practice is plain SQL retrieval (see PracticeRepository) — zero LLM
-// cost. This function only runs on an explicit "generate" request.
+// Billing keystone surface (BILLING_PRICING_AND_TIERS_PLAN.md §5.3/§5.5/§6).
+// Assembly order, designed so the 600/mo Pro cap "feels like thousands" while
+// the trial/entitlement gate still applies to the WHOLE surface:
+//   1. GATE + RESERVE: consume_meter('ai_questions', count) UP FRONT — before any
+//      pool is served — and branch on the RPC's reason:
+//        trial_ai_locked / no_entitlement → HTTP 402 (the ONLY two 402 reasons).
+//          Served before the pool so a trialing/lapsed user gets NO AI practice,
+//          pooled or generated.
+//        cap_reached → SOFT fallback: return bank/pool questions, HTTP 200,
+//          source:'bank' (no wall — for Basic AND Pro; nothing was reserved).
+//        ok → `count` is reserved; continue.
+//   2. POOL-FIRST: read bank + active AI pool (chapter/difficulty, excluding seen).
+//      Whatever the pool serves is REFUNDED, so pool reuse costs ₹0 and the net
+//      meter equals only the genuinely novel questions generated.
+//   3. Generate the remaining gap on Gemini 2.5 Flash (correctness-critical),
+//      validate, store survivors as `probation` in the SHARED pool, and refund
+//      every reserved question we didn't produce.
 //
 // Input  (POST JSON): { chapter_id, difficulty?: 'easy'|'medium'|'hard', count? }
-// Output (JSON): { ok, questions: [...Question], reason?, remaining? }
+// Output (JSON): { ok, source: 'pool'|'ai'|'bank', questions: [...Question], reason?, remaining? }
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+// Generation stays on Flash — a wrong answer key is worse than no question (§6).
 const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
+// Cheap model for NON-correctness surfaces (narrative, breakdowns, roadmaps,
+// notes, formula sheets). Generation here never uses it; it exists so those
+// consumers route through one constant (§6). ~5–6× cheaper output.
+const GEMINI_CHEAP_MODEL = Deno.env.get("GEMINI_CHEAP_MODEL") ?? "gemini-2.5-flash-lite";
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const MAX_COUNT = 5;
+const METER = "ai_questions";
+
+// Difficulty → difficulty_level window (matches PracticeRepository.bandForLabel).
+const DIFF_BAND: Record<string, [number, number]> = {
+  easy: [1, 3],
+  medium: [3, 6],
+  hard: [6, 8],
+};
+const DIFF_LEVEL: Record<string, number> = { easy: 2, medium: 5, hard: 7 };
+
+// Columns returned to the client — must match Question.fromJson on both the pool
+// read and the post-insert select so 'pool'/'bank'/'ai' rows are interchangeable.
+const Q_COLS =
+  "id, text, type, options, correct_answer, image_url, subject_id, chapter_id, topic_id, difficulty, explanation";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +58,13 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-const DIFF_LEVEL: Record<string, number> = { easy: 2, medium: 5, hard: 7 };
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 interface GenQ {
   text?: string;
@@ -44,7 +78,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   let userId = "";
-  let creditConsumed = false;
+  let consumed = 0; // questions metered but not yet confirmed (refunded on failure)
   let db: ReturnType<typeof createClient> | null = null;
 
   try {
@@ -67,29 +101,78 @@ Deno.serve(async (req: Request) => {
       : "medium";
     const count = Math.max(1, Math.min(MAX_COUNT, Number(body?.count) || 3));
     if (!chapterId) return json({ ok: false, error: "chapter_id required" }, 400);
-    if (!GEMINI_API_KEY) return json({ ok: false, error: "generation unavailable" }, 503);
 
     db = createClient(supabaseUrl, serviceKey);
 
-    // ── Meter: spend one generation credit (tiered, race-safe) ──
-    const { data: credit, error: credErr } = await db.rpc("consume_generation_credit", {
+    // ── 1. Gate + reserve: meter the full request UP FRONT ──
+    // This MUST run before any pool is served. trial_ai_locked / no_entitlement
+    // block the WHOLE AI surface — a trialing or lapsed user gets no AI practice,
+    // pooled OR generated. We reserve `count` here and refund below everything we
+    // don't actually generate (pool-served + failed), so the net meter equals the
+    // genuinely novel questions and pool reuse stays free.
+    const { data: credit, error: credErr } = await db.rpc("consume_meter", {
       p_user: userId,
+      p_meter: METER,
+      p_amount: count,
     });
     if (credErr) return json({ ok: false, error: "credit check failed" }, 500);
-    if (!credit?.ok) {
-      return json({ ok: false, reason: credit?.reason ?? "no_credit", plan: credit?.plan }, 402);
-    }
-    creditConsumed = true;
-    const remaining = credit?.remaining ?? null;
+    const reason: string | undefined = credit?.reason;
+    const plan: string | undefined = credit?.plan;
 
-    // ── Context: chapter, its topics, and a few real questions for style ──
+    // The ONLY two surviving 402s — no pool is served on these paths.
+    if (reason === "trial_ai_locked" || reason === "no_entitlement") {
+      return json({ ok: false, reason, plan }, 402);
+    }
+
+    // ── 2. Read bank + active AI pool (excludes already-seen) ──
+    const seen = await seenQuestionIds(db, userId);
+    const [lo, hi] = DIFF_BAND[difficulty];
+    const { data: poolData } = await db
+      .from("questions")
+      .select(Q_COLS)
+      .eq("chapter_id", chapterId)
+      .eq("status", "active")
+      .gte("difficulty_level", lo)
+      .lte("difficulty_level", hi)
+      .limit(count * 5);
+    const pool = shuffle(((poolData ?? []) as { id: string }[]).filter((q) => !seen.has(q.id)));
+    const poolPick = pool.slice(0, count);
+
+    // Soft cap → no wall: serve bank/pool at HTTP 200 (cap_reached reserves nothing).
+    if (reason === "cap_reached") {
+      return json({
+        ok: true,
+        source: "bank",
+        questions: poolPick,
+        reason: "cap_reached",
+        remaining: credit?.remaining ?? 0,
+        count: poolPick.length,
+      });
+    }
+    if (!credit?.ok) {
+      // Unexpected non-ok reason: fail closed (nothing was reserved).
+      return json({ ok: false, reason: reason ?? "no_credit", plan }, 402);
+    }
+    consumed = count; // reserved; refunded below for everything we don't generate
+
+    // ── 3. Pool-first: if the pool fills the request, generate nothing ──
+    const gap = count - poolPick.length;
+    if (gap <= 0 || !GEMINI_API_KEY) {
+      // Whole request served from the pool (or generation unavailable) — refund all.
+      await db.rpc("refund_meter", { p_user: userId, p_meter: METER, p_amount: consumed });
+      consumed = 0;
+      return json({ ok: true, source: "pool", questions: poolPick, remaining: null, count: poolPick.length });
+    }
+
+    // ── 4. Generation context (only now that we're actually generating) ──
     const { data: chapter } = await db
       .from("chapters")
       .select("id, name, subject_id")
       .eq("id", chapterId)
       .single();
     if (!chapter) {
-      await db.rpc("refund_generation_credit", { p_user: userId });
+      await db.rpc("refund_meter", { p_user: userId, p_meter: METER, p_amount: consumed });
+      consumed = 0;
       return json({ ok: false, reason: "chapter_not_found" }, 404);
     }
     const { data: topics } = await db
@@ -112,19 +195,22 @@ Deno.serve(async (req: Request) => {
       fallbackTopic = (anyQ?.[0]?.topic_id as string) ?? `${chapterId}t1`;
     }
 
-    // ── Generate ──
+    // ── Generate the gap ──
     const generated = await generate(
-      chapter.name as string, difficulty, count, topicList, (samples ?? []) as GenQ[],
+      chapter.name as string, difficulty, gap, topicList, (samples ?? []) as GenQ[],
     );
-
-    // ── Free structural validation ──
     const valid = generated.filter((q) => isStructurallyValid(q));
     if (valid.length === 0) {
-      await db.rpc("refund_generation_credit", { p_user: userId });
+      await db.rpc("refund_meter", { p_user: userId, p_meter: METER, p_amount: consumed });
+      consumed = 0;
+      // Nothing usable came back, but the free pool may still have some.
+      if (poolPick.length > 0) {
+        return json({ ok: true, source: "pool", questions: poolPick, remaining: null, count: poolPick.length });
+      }
       return json({ ok: false, reason: "generation_empty" }, 200);
     }
 
-    // ── Insert as probation into the shared pool ──
+    // ── Store survivors as probation in the shared pool ──
     const rows = valid.map((q) => {
       const topicId = q.topic_id && validTopicIds.has(q.topic_id) ? q.topic_id : fallbackTopic;
       return {
@@ -149,22 +235,56 @@ Deno.serve(async (req: Request) => {
     const { data: inserted, error: insErr } = await db
       .from("questions")
       .insert(rows)
-      .select("id, text, type, options, correct_answer, image_url, subject_id, chapter_id, topic_id, difficulty, explanation");
+      .select(Q_COLS);
     if (insErr) {
-      await db.rpc("refund_generation_credit", { p_user: userId });
+      await db.rpc("refund_meter", { p_user: userId, p_meter: METER, p_amount: consumed });
+      consumed = 0;
       return json({ ok: false, error: "insert failed", detail: insErr.message }, 500);
     }
 
-    return json({ ok: true, questions: inserted, remaining, count: inserted?.length ?? 0 });
+    // Refund the questions we metered but couldn't produce.
+    const produced = inserted?.length ?? 0;
+    if (produced < consumed) {
+      await db.rpc("refund_meter", { p_user: userId, p_meter: METER, p_amount: consumed - produced });
+    }
+    consumed = 0;
+
+    // Combine the free pool questions with the freshly generated ones.
+    const questions = [...poolPick, ...(inserted ?? [])];
+    // We reserved `count`; net spend is `produced`, so add back the refund
+    // (count - produced) to the remaining the RPC reported after reserving count.
+    const remaining = credit?.remaining == null
+      ? null
+      : (credit.remaining as number) + (count - produced);
+    return json({ ok: true, source: "ai", questions, remaining, count: questions.length });
   } catch (e) {
-    // Best-effort refund so a crash never burns the student's credit.
-    if (creditConsumed && db && userId) {
-      try { await db.rpc("refund_generation_credit", { p_user: userId }); } catch (_) { /* noop */ }
+    // Best-effort refund so a crash never burns the student's meter.
+    if (consumed > 0 && db && userId) {
+      try {
+        await db.rpc("refund_meter", { p_user: userId, p_meter: METER, p_amount: consumed });
+      } catch (_) { /* noop */ }
     }
     console.error("generate-questions error:", e);
     return json({ ok: false, error: String(e) }, 500);
   }
 });
+
+/// Question ids the caller has already answered (so we don't re-serve them).
+async function seenQuestionIds(
+  db: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<Set<string>> {
+  try {
+    const { data } = await db
+      .from("user_answers")
+      .select("question_id, test_attempts!inner(user_id)")
+      .eq("test_attempts.user_id", userId)
+      .limit(500);
+    return new Set(((data ?? []) as { question_id: string }[]).map((r) => r.question_id));
+  } catch (_) {
+    return new Set<string>();
+  }
+}
 
 async function generate(
   chapterName: string,

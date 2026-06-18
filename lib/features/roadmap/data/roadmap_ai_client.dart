@@ -31,6 +31,18 @@ class RoadmapPlanContext {
 ///     // POST plan context to an edge function that calls
 ///     // claude-opus-4-8 and returns refined ordering + reason strings.
 ///   }
+///
+/// ⚠️ BILLING HOOK (deferred — BILLING_PRICING_AND_TIERS_PLAN.md §6, §9 step 6):
+/// `ai_roadmap` is a server-metered Pro surface (Basic 2/mo, Pro 8/mo — already
+/// seeded in `meter_limits`, see 20260617120000_usage_meters.sql). When the
+/// `ClaudeRoadmapAiClient` edge function above is built, it MUST gate the same
+/// way generate-questions does:
+///   1. call `consume_meter(p_user, 'ai_roadmap')` before spending the LLM;
+///   2. branch on the reason — `trial_ai_locked` / `no_entitlement` → 402,
+///      `cap_reached` → fall back to the [HeuristicRoadmapAiClient] output (no wall);
+///   3. route generation to the CHEAP model (`GEMINI_CHEAP_MODEL`), not Flash —
+///      roadmap ordering is a non-correctness surface.
+/// The offline client below is unmetered (₹0) and needs no gate.
 abstract class RoadmapAiClient {
   /// Annotate (and optionally re-prioritise) a draft plan. Implementations must
   /// preserve the schedule windows produced by the planner.

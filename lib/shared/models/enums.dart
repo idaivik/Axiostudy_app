@@ -170,36 +170,36 @@ enum SubscriptionStatus {
   }
 }
 
-/// Subscription plan tiers.
+/// Subscription plan tiers. Two paid tiers only — **Basic** and **Pro**.
+///
+/// [free] is **not a sold tier**: it is the internal "no active entitlement →
+/// paywall" sentinel and grants nothing (see `entitlements.dart`'s empty
+/// capability set). The store sells `axio_basic` (→ [basic]) and
+/// `axio_premium` (→ [pro], bridged in the RevenueCat webhook).
 enum SubscriptionTier {
   free,
   basic,
-  premium,
-  professional;
+  pro;
 
   String get label {
     switch (this) {
       case SubscriptionTier.free:
-        return 'Free Trial';
+        return 'No plan';
       case SubscriptionTier.basic:
         return 'Basic';
-      case SubscriptionTier.premium:
-        return 'Premium';
-      case SubscriptionTier.professional:
-        return 'Professional';
+      case SubscriptionTier.pro:
+        return 'Pro';
     }
   }
 
   String get price {
     switch (this) {
       case SubscriptionTier.free:
-        return '₹0/month';
+        return '—';
       case SubscriptionTier.basic:
         return '₹199/month';
-      case SubscriptionTier.premium:
-        return '₹299/month';
-      case SubscriptionTier.professional:
-        return '₹1,999/month';
+      case SubscriptionTier.pro:
+        return '₹399/month';
     }
   }
 }

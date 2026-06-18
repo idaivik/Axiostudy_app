@@ -125,10 +125,11 @@ class UserModel {
     switch (tier) {
       case 'basic':
         return SubscriptionTier.basic;
+      case 'pro':
+      // Legacy values still present on older rows map to the consolidated `pro`.
       case 'premium':
-        return SubscriptionTier.premium;
       case 'professional':
-        return SubscriptionTier.professional;
+        return SubscriptionTier.pro;
       default:
         return SubscriptionTier.free;
     }

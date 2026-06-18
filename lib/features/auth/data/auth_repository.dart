@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/billing/revenuecat.dart';
+import '../../../core/supabase/supabase_config.dart';
 import '../../../shared/models/enums.dart';
 import '../domain/user_model.dart';
 
@@ -12,6 +13,24 @@ class EmailConfirmationRequired implements Exception {
   String toString() => 'Email confirmation required for $email';
 }
 
+/// Thrown on login when the account exists but its email has not been verified
+/// yet. The UI surfaces a clear message and offers to resend the link.
+class EmailNotConfirmedException implements Exception {
+  final String email;
+  const EmailNotConfirmedException(this.email);
+  @override
+  String toString() => 'Email not confirmed for $email';
+}
+
+/// Thrown when an authenticated user has no matching `profiles` row and one
+/// could not be created. Signals the UI to show a real error instead of
+/// silently bouncing back to the login screen.
+class ProfileNotFoundException implements Exception {
+  const ProfileNotFoundException();
+  @override
+  String toString() => 'Profile row not found for the signed-in user';
+}
+
 /// Repository for Supabase Auth and profile operations.
 class AuthRepository {
   final SupabaseClient _client;
@@ -19,17 +38,65 @@ class AuthRepository {
   AuthRepository(this._client);
 
   /// Sign in with email and password.
+  ///
+  /// Translates Supabase's stringly-typed "Email not confirmed" auth error into
+  /// a typed [EmailNotConfirmedException] so the UI can show a clear message and
+  /// offer to resend the verification email.
   Future<UserModel> signInWithEmail(String email, String password) async {
-    final response = await _client.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
+    final AuthResponse response;
+    try {
+      response = await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+    } on AuthException catch (e) {
+      if (_isEmailNotConfirmed(e)) {
+        throw EmailNotConfirmedException(email);
+      }
+      rethrow;
+    }
 
     if (response.user == null) {
       throw Exception('Login failed: no user returned');
     }
 
     return await getProfile(response.user!.id);
+  }
+
+  /// True when an [AuthException] is Supabase's "email not confirmed" rejection.
+  bool _isEmailNotConfirmed(AuthException e) {
+    final msg = e.message.toLowerCase();
+    return e.code == 'email_not_confirmed' ||
+        msg.contains('email not confirmed') ||
+        msg.contains('not confirmed');
+  }
+
+  /// Re-send the signup confirmation email (with the deep-link redirect) so a
+  /// user who lost or never received the first one can verify their address.
+  Future<void> resendConfirmationEmail(String email) async {
+    await _client.auth.resend(
+      type: OtpType.signup,
+      email: email,
+      emailRedirectTo: SupabaseConfig.authRedirectUrl,
+    );
+  }
+
+  /// Send a password-reset email. The link redirects back into the app via the
+  /// auth deep link, where supabase_flutter raises an
+  /// [AuthChangeEvent.passwordRecovery] event and the router shows the
+  /// set-new-password screen.
+  Future<void> sendPasswordReset(String email) async {
+    await _client.auth.resetPasswordForEmail(
+      email,
+      redirectTo: SupabaseConfig.authRedirectUrl,
+    );
+  }
+
+  /// Set a new password for the user in the active (recovery) session.
+  Future<void> updatePassword(String newPassword) async {
+    await _client.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
   }
 
   /// Create a new account with email + password. The `name` is forwarded as
@@ -48,6 +115,10 @@ class AuthRepository {
       email: email,
       password: password,
       data: {'name': name.trim()},
+      // After the user taps the link in the confirmation email, Supabase
+      // redirects here — a deep link that re-opens the app and lets
+      // supabase_flutter establish the session automatically.
+      emailRedirectTo: SupabaseConfig.authRedirectUrl,
     );
 
     final user = response.user;
@@ -121,13 +192,36 @@ class AuthRepository {
   }
 
   /// Get the profile for a given user ID.
+  ///
+  /// The `handle_new_user` trigger normally creates this row at signup. If it is
+  /// ever missing (trigger failure, a legacy account, or a row deleted out of
+  /// band) we self-heal by inserting a minimal row from the auth user, rather
+  /// than throwing — which previously left the router bouncing the user back to
+  /// `/login` after a successful password sign-in.
   Future<UserModel> getProfile(String userId) async {
     final data = await _client
         .from('profiles')
         .select()
         .eq('id', userId)
+        .maybeSingle();
+    if (data != null) return UserModel.fromJson(data);
+
+    // No row — try to recreate it from the authenticated user.
+    final authUser = _client.auth.currentUser;
+    if (authUser == null || authUser.id != userId) {
+      throw const ProfileNotFoundException();
+    }
+    final name = (authUser.userMetadata?['name'] as String?)?.trim();
+    final inserted = await _client
+        .from('profiles')
+        .insert({
+          'id': userId,
+          'email': authUser.email,
+          if (name != null && name.isNotEmpty) 'name': name,
+        })
+        .select()
         .single();
-    return UserModel.fromJson(data);
+    return UserModel.fromJson(inserted);
   }
 
   /// Update the user's profile.

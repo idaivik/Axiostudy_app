@@ -24,6 +24,22 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Deep link for Supabase auth callbacks (email confirmation, password
+	     reset). Must match SupabaseConfig.authRedirectUrl and the Supabase
+	     Dashboard redirect URL: com.axiostudy.app://login-callback -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.axiostudy.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.axiostudy.app</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

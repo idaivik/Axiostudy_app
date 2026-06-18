@@ -53,18 +53,19 @@ app id is permanent once created, so get this right before §4–§5.
 | Android applicationId | `com.axiostudy.app` | `android/app/build.gradle.kts` |
 | Supabase project ref | `nxtfbyvacunsiytlsfkl` | — |
 | Webhook URL | `https://nxtfbyvacunsiytlsfkl.functions.supabase.co/revenuecat-webhook` | deployed |
-| Basic product id | `axio_basic_monthly` (₹199/mo) | `TrialPlan.basic.productId` |
-| Premium product id | `axio_premium_monthly` (₹299/mo) | `TrialPlan.premium.productId` |
-| Entitlement ids | `basic`, `premium` | `TrialPlan.*.entitlementId` |
-| RevenueCat package ids | `basic`, `premium` | `TrialPlan.*.packageId` |
-| Trial length | 7 days (store-native intro/free-trial offer) | — |
+| Basic subscription id | `axio_basic` (₹199/mo · ₹2,199/yr) | `TrialPlan.basic.storeProductId` |
+| Pro subscription id | `axio_premium` (₹399/mo · ₹4,399/yr) | `TrialPlan.pro.storeProductId` |
+| Entitlement ids | `basic`, `pro` | `TrialPlan.*.entitlementId` |
+| RevenueCat package ids | `$rc_monthly`, `$rc_annual` (per period) | `TrialPlan.*.packageId(period)` |
+| Trial length | 7 days, first purchase, **both** monthly & annual (Play `freetrial` offer) | — |
 
-`TrialPlan` lives in
-`lib/features/subscription/domain/payment_models.dart`. The webhook derives tier
-from `product_id` substring (`*premium*`→premium, `*basic*`→basic) in
-`supabase/functions/revenuecat-webhook/index.ts` — both product ids above satisfy
-that. **If you change any id, change it in those two files (and re-create the store
-product).**
+Each tier is **one** Play subscription with **monthly + annual base plans** (the period
+is the base plan, not a separate product id) and a first-purchase `freetrial` offer.
+`TrialPlan` lives in `lib/features/subscription/domain/payment_models.dart`. The webhook
+derives tier from the `product_id` substring (`*basic*`→basic, `*pro*`/`*premium*`→pro)
+in `supabase/functions/revenuecat-webhook/index.ts` — this is the single bridge from the
+permanent store id `axio_premium` to the internal `pro` tier. **If you change any id,
+change it in those two files (and re-create the store product).**
 
 ---
 
@@ -131,10 +132,14 @@ entitlements.
 2. App Store Connect → Business → sign **Paid Apps agreement** + add **banking & tax**.
    IAP does nothing until this shows **Active**.
 3. Create the app record with bundle id **`com.axiostudy.app`**.
-4. Create a **Subscription Group** with two **auto-renewable subscriptions**, each
-   with a **7-day free introductory offer**:
+4. Create a **Subscription Group** with **four** auto-renewable subscriptions (Apple
+   has no base-plan concept — each duration is its own product), each with a **7-day
+   free introductory offer**. Keep the tier substring (`basic`/`premium`) in the id so
+   the webhook's `tierForProduct` resolves it:
    - `axio_basic_monthly` — ₹199/month
-   - `axio_premium_monthly` — ₹299/month
+   - `axio_basic_yearly` — ₹2,199/year
+   - `axio_premium_monthly` — ₹399/month
+   - `axio_premium_yearly` — ₹4,399/year
 5. Create a few **Sandbox testers** (Users and Access → Sandbox).
 6. For RevenueCat: Users and Access → **Integrations → In-App Purchase** → generate
    key → download the **`.p8`**. Collect: **`.p8`** + **Key ID** + **Issuer ID** +
@@ -147,9 +152,10 @@ entitlements.
 2. Setup → **Payments** merchant profile.
 3. Create the app with package **`com.axiostudy.app`**; upload at least one build to
    an internal-testing track (subscriptions require an uploaded AAB).
-4. Create two **subscriptions**, each a base plan + **7-day free-trial offer**:
-   - `axio_basic_monthly` — ₹199/month
-   - `axio_premium_monthly` — ₹299/month
+4. Create two **subscriptions**, each with a **monthly + an annual base plan** and a
+   first-purchase **`freetrial` offer (7 days)** on both base plans:
+   - `axio_basic` — monthly ₹199, annual ₹2,199
+   - `axio_premium` — monthly ₹399, annual ₹4,399
 5. Setup → **License testing** → add tester Google accounts.
 6. Create a **Google Cloud service account** with Play Developer API access, grant it
    in Play Console → Users & permissions (follow RevenueCat's guide). Collect: the
@@ -161,11 +167,13 @@ entitlements.
    `com.axiostudy.app`) and a **Play Store app** (package `com.axiostudy.app`).
 2. Upload the Apple key/shared secret (§4.6) and Play service-account JSON (§5.6).
 3. **Products** matching the store product ids → **Entitlements** `basic` and
-   `premium`, attach each product to its entitlement.
-4. **Offering** (set as `current`) with two **Packages** whose identifiers are
-   exactly **`basic`** and **`premium`**, pointing at the two products.
-   *(Code matches packages by these identifiers, then falls back to product id, then
-   `offering.monthly` — see `_findPackage` in `payment_service.dart`.)*
+   `pro` (the Play subscription `axio_premium` attaches to the `pro`
+   entitlement), attach each product to its entitlement.
+4. **Offering** (set as `current`) with the monthly + annual **Packages** for each
+   tier, using the canonical package types **`$rc_monthly`** and **`$rc_annual`**.
+   *(Code matches by tier × period — package type for the period and the product-id
+   substring for the tier — then falls back to product id / `offering.monthly` /
+   `offering.annual`; see `_findPackage` in `payment_service.dart`.)*
 5. **Webhook is already deployed and registered** — just confirm in
    Integrations → Webhooks that the URL/header match §1 and "Send test event" → 200.
 6. Collect the two **public SDK keys**: `appl_…` (iOS) and `goog_…` (Android).

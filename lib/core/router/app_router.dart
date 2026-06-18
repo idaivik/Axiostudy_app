@@ -6,6 +6,7 @@ import '../../features/auth/data/auth_providers.dart';
 import '../../features/auth/domain/user_model.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
+import '../../features/auth/presentation/reset_password_screen.dart';
 import '../../features/onboarding/data/onboarding_providers.dart';
 import '../../features/onboarding/presentation/splash_screen.dart';
 import '../../features/onboarding/presentation/exam_selection_screen.dart';
@@ -37,7 +38,12 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref.listen(isLoggedInProvider, (_, _) => refresh.value++);
   ref.listen(currentUserProvider, (_, _) => refresh.value++);
+  ref.listen(passwordRecoveryProvider, (_, _) => refresh.value++);
   ref.onDispose(refresh.dispose);
+
+  // Keep the auth-event subscription alive for the app's lifetime so a
+  // password-recovery deep link is caught even from a cold start.
+  ref.watch(authEventListenerProvider);
 
   // Check the persisted session synchronously so returning users land on the
   // splash (then their gate) instead of flashing the login screen first.
@@ -57,6 +63,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/signup',
         builder: (context, state) => const SignUpScreen(),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) => const ResetPasswordScreen(),
       ),
       GoRoute(
         path: '/splash',
@@ -182,7 +192,20 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// required onboarding gate (exam → paywall → profiling) until complete.
 String? _onboardingGuard(Ref ref, GoRouterState state) {
   final loc = state.matchedLocation;
-  final loggedIn = ref.read(isLoggedInProvider);
+  // Read the real session synchronously rather than the reactive bool: right
+  // after signInWithPassword the session is already set but the auth-state
+  // stream (and isLoggedInProvider) can still be a frame behind, which would
+  // otherwise bounce a just-logged-in user straight back to /login.
+  final loggedIn = ref.read(guestModeProvider) ||
+      ref.read(supabaseClientProvider).auth.currentSession != null;
+
+  // ── Password recovery ───────────────────────────────────────────────────────
+  // Arrived via a reset-password deep link: a (recovery) session exists, but the
+  // user must set a new password before anything else. Takes precedence over the
+  // onboarding funnel so they can't slip into the app on a recovery token.
+  if (ref.read(passwordRecoveryProvider)) {
+    return loc == '/reset-password' ? null : '/reset-password';
+  }
 
   // ── Signed out ──────────────────────────────────────────────────────────────
   if (!loggedIn) {
@@ -211,9 +234,12 @@ String? _onboardingGuard(Ref ref, GoRouterState state) {
 
   final UserModel? user = userAsync.valueOrNull;
   if (user == null) {
-    // Resolved with no profile (fetch error / session race) — send to login
-    // so the user can re-authenticate rather than being stuck forever.
-    return _authRoutes.contains(loc) ? null : '/login';
+    // We're past the !loggedIn gate, so a session exists but the profile hasn't
+    // loaded yet (stale value right after sign-in, or a transient fetch error
+    // that currentUserProvider retries). NEVER send an authenticated user to
+    // /login — re-running sign-in hits the same path and loops. Hold on /splash;
+    // a resolved profile re-triggers this guard and routes onward.
+    return loc == '/splash' ? null : '/splash';
   }
 
   // ── Profile loaded — enforce onboarding funnel ───────────────────────────────

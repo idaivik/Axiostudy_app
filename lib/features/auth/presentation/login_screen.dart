@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/validators.dart';
 import '../../../core/widgets/axio_button.dart';
 import '../data/auth_providers.dart';
+import '../data/auth_repository.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -23,6 +25,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _isGuestLoading = false; // kept for spinner UI but resolves instantly
   bool _obscurePassword = true;
   String? _errorMessage;
+  // Set when login fails because the email is unverified — drives the
+  // "Resend verification email" action below the error banner.
+  String? _unverifiedEmail;
+  bool _isResending = false;
 
   late AnimationController _fadeController;
   late AnimationController _slideController;
@@ -90,24 +96,71 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       setState(() => _errorMessage = 'Please enter your email and password');
       return;
     }
-    setState(() { _isLoading = true; _errorMessage = null; });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _unverifiedEmail = null;
+    });
     try {
       final repo = ref.read(authRepositoryProvider);
       await repo.signInWithEmail(email, password);
       if (mounted) context.go('/');
+    } on EmailNotConfirmedException catch (e) {
+      // Most common cause of "tap Continue, nothing happens": the account is
+      // valid but its email is still unverified.
+      if (mounted) {
+        setState(() {
+          _errorMessage =
+              'Your email isn\'t verified yet. Open the confirmation link we '
+              'emailed you, then come back and log in.';
+          _unverifiedEmail = e.email;
+        });
+      }
+    } on ProfileNotFoundException {
+      if (mounted) {
+        setState(() => _errorMessage =
+            'We couldn\'t load your account profile. Please contact support.');
+      }
     } catch (e) {
       String msg = 'Login failed. Please check your credentials.';
       final s = e.toString();
       if (s.contains('Invalid login credentials')) {
         msg = 'Invalid email or password.';
-      } else if (s.contains('Email not confirmed')) {
-        msg = 'Please confirm your email first.';
-      } else if (s.contains('network')) {
+      } else if (s.contains('Email not confirmed') ||
+          s.contains('not confirmed')) {
+        msg = 'Your email isn\'t verified yet. Check your inbox for the link.';
+      } else if (s.contains('network') || s.contains('SocketException')) {
         msg = 'Network error. Check your connection.';
       }
-      setState(() => _errorMessage = msg);
+      if (mounted) setState(() => _errorMessage = msg);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleResendVerification() async {
+    final email = _unverifiedEmail;
+    if (email == null) return;
+    setState(() => _isResending = true);
+    try {
+      await ref.read(authRepositoryProvider).resendConfirmationEmail(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verification email sent to $email'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.primary,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _errorMessage =
+            'Could not resend the email. Please try again in a moment.');
+      }
+    } finally {
+      if (mounted) setState(() => _isResending = false);
     }
   }
 
@@ -232,6 +285,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                   ),
                                 ),
                               ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+
+                        if (_unverifiedEmail != null) ...[
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed:
+                                  _isResending ? null : _handleResendVerification,
+                              icon: _isResending
+                                  ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.primary,
+                                      ),
+                                    )
+                                  : Icon(LucideIcons.mail,
+                                      size: 16, color: AppColors.primary),
+                              label: Text(
+                                'Resend verification email',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: BorderSide(
+                                  color: AppColors.primary.withValues(alpha: 0.4),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -374,36 +465,104 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  void _showForgotPassword() {
-    showDialog(
+  Future<void> _showForgotPassword() async {
+    final emailController =
+        TextEditingController(text: _emailController.text.trim());
+    bool sending = false;
+    String? dialogError;
+
+    await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Reset Password'),
-        content: const Text(
-          'A password reset link will be sent to your registered email address.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Reset link sent to your email'),
-                  behavior: SnackBarBehavior.floating,
-                  backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Reset Password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter your account email and we\'ll send you a link to '
+                'reset your password.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Email address',
+                  prefixIcon: Icon(LucideIcons.mail, size: 18),
                 ),
-              );
-            },
-            child: const Text('Send Link'),
+              ),
+              if (dialogError != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  dialogError!,
+                  style: TextStyle(color: AppColors.wrong, fontSize: 13),
+                ),
+              ],
+            ],
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: sending ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: sending
+                  ? null
+                  : () async {
+                      final email = emailController.text.trim();
+                      if (!Validators.isValidEmail(email)) {
+                        setDialogState(() =>
+                            dialogError = 'Please enter a valid email address.');
+                        return;
+                      }
+                      setDialogState(() {
+                        sending = true;
+                        dialogError = null;
+                      });
+                      try {
+                        await ref
+                            .read(authRepositoryProvider)
+                            .sendPasswordReset(email);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Reset link sent to $email'),
+                              behavior: SnackBarBehavior.floating,
+                              backgroundColor: AppColors.primary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (_) {
+                        setDialogState(() {
+                          sending = false;
+                          dialogError =
+                              'Could not send the email. Please try again.';
+                        });
+                      }
+                    },
+              child: sending
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Send Link'),
+            ),
+          ],
+        ),
       ),
     );
+    emailController.dispose();
   }
 }

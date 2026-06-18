@@ -15,10 +15,12 @@ import '../domain/payment_models.dart';
 /// ([RevenueCatConfig.isConfigured]), otherwise [SimulatedPaymentService] so the
 /// whole signup flow stays testable on a machine without store credentials.
 abstract class PaymentService {
-  /// Opens the native store purchase sheet for [plan]. On success the trial is
-  /// active (₹0 today; the store auto-renews after the trial unless cancelled).
+  /// Opens the native store purchase sheet for [plan] at the chosen [period]. On
+  /// success the trial is active (₹0 today; the store auto-renews after the trial
+  /// unless cancelled).
   Future<PurchaseResult> purchase({
     required TrialPlan plan,
+    required BillingPeriod period,
     required UserModel user,
   });
 
@@ -33,18 +35,24 @@ class SimulatedPaymentService implements PaymentService {
   @override
   Future<PurchaseResult> purchase({
     required TrialPlan plan,
+    required BillingPeriod period,
     required UserModel user,
   }) async {
     await Future.delayed(const Duration(milliseconds: 1400));
     final stamp = DateTime.now().millisecondsSinceEpoch;
+    // The first-purchase trial is offered on BOTH periods, so the simulated path
+    // always starts in `trialing`; the period only changes how far the period
+    // end is. (The real store decides trial eligibility per account.)
+    final periodLength =
+        period == BillingPeriod.annual ? const Duration(days: 365) : const Duration(days: 30);
     return PurchaseResult(
       success: true,
       status: SubscriptionStatus.trialing,
       tier: plan.tier,
       platform: StorePlatform.none,
-      productId: plan.productId,
-      storeTransactionId: 'sim_${plan.tier.name}_$stamp',
-      expiresAt: DateTime.now().add(const Duration(days: 7)),
+      productId: plan.storeProductId,
+      storeTransactionId: 'sim_${plan.tier.name}_${period.name}_$stamp',
+      expiresAt: DateTime.now().add(periodLength),
     );
   }
 
@@ -62,6 +70,7 @@ class RevenueCatPaymentService implements PaymentService {
   @override
   Future<PurchaseResult> purchase({
     required TrialPlan plan,
+    required BillingPeriod period,
     required UserModel user,
   }) async {
     try {
@@ -75,7 +84,7 @@ class RevenueCatPaymentService implements PaymentService {
         );
       }
 
-      final package = _findPackage(offering, plan);
+      final package = _findPackage(offering, plan, period);
       if (package == null) {
         return PurchaseResult.failure(
           'The ${plan.name} plan is not available on your store account yet.',
@@ -120,17 +129,34 @@ class RevenueCatPaymentService implements PaymentService {
     }
   }
 
-  /// Match the package selling [plan]: first by the configured package id, then
-  /// by the underlying store product id, finally falling back to the offering's
-  /// monthly package so a misconfigured id still sells *something*.
-  Package? _findPackage(Offering offering, TrialPlan plan) {
+  /// Match the package selling [plan] at [period]. The current offering may hold
+  /// all four packages (2 tiers × 2 periods) or be split per tier, so we select
+  /// by **tier × period**:
+  ///   1. period type (monthly/annual) AND the product-id substring for the tier;
+  ///   2. the canonical package identifier (`$rc_monthly` / `$rc_annual`);
+  ///   3. the offering's typed package for the period;
+  /// so a partially-misconfigured offering still sells the right thing.
+  Package? _findPackage(Offering offering, TrialPlan plan, BillingPeriod period) {
+    final wantType =
+        period == BillingPeriod.annual ? PackageType.annual : PackageType.monthly;
+    // `axio_premium` → matches "premium"; `axio_basic` → "basic".
+    final tierHint = plan.storeProductId.toLowerCase();
+
+    bool matchesTier(Package p) {
+      final id = p.storeProduct.identifier.toLowerCase();
+      return id.contains(tierHint) ||
+          (plan.tier == SubscriptionTier.pro &&
+              (id.contains('premium') || id.contains('pro'))) ||
+          (plan.tier == SubscriptionTier.basic && id.contains('basic'));
+    }
+
     for (final p in offering.availablePackages) {
-      if (p.identifier == plan.packageId) return p;
+      if (p.packageType == wantType && matchesTier(p)) return p;
     }
     for (final p in offering.availablePackages) {
-      if (p.storeProduct.identifier.startsWith(plan.productId)) return p;
+      if (p.identifier == plan.packageId(period)) return p;
     }
-    return offering.monthly;
+    return period == BillingPeriod.annual ? offering.annual : offering.monthly;
   }
 
   /// Translate the post-purchase [CustomerInfo] into our domain result by
@@ -140,10 +166,10 @@ class RevenueCatPaymentService implements PaymentService {
     SubscriptionTier? preferredTier,
     StoreTransaction? transaction,
   }) {
-    // Prefer premium over basic when both somehow resolve.
+    // Prefer pro over basic when both somehow resolve.
     EntitlementInfo? entitlement;
     TrialPlan? plan;
-    for (final candidate in [TrialPlan.premium, TrialPlan.basic]) {
+    for (final candidate in [TrialPlan.pro, TrialPlan.basic]) {
       final e = info.entitlements.active[candidate.entitlementId];
       if (e != null && e.isActive) {
         entitlement = e;

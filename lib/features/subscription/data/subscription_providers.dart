@@ -26,7 +26,10 @@ class SubscriptionController {
 
   static const int trialDays = 7;
 
-  Future<PurchaseResult> startTrial(SubscriptionTier tier) async {
+  Future<PurchaseResult> startTrial(
+    SubscriptionTier tier,
+    BillingPeriod period,
+  ) async {
     final user = await _ref.read(currentUserProvider.future);
     if (user == null) {
       return PurchaseResult.failure('You need to be signed in to start a trial.');
@@ -35,7 +38,7 @@ class SubscriptionController {
     final plan = TrialPlan.forTier(tier);
     final result = await _ref
         .read(paymentServiceProvider)
-        .purchase(plan: plan, user: user);
+        .purchase(plan: plan, period: period, user: user);
 
     if (!result.success) return result;
     await _persist(user.id, result, fallbackTier: tier);
@@ -59,7 +62,7 @@ class SubscriptionController {
       await _persist(
         user.id,
         result,
-        fallbackTier: result.tier ?? SubscriptionTier.premium,
+        fallbackTier: result.tier ?? SubscriptionTier.pro,
       );
     }
     return result;

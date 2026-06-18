@@ -14,7 +14,7 @@ class MockData {
     email: 'rahul@example.com',
     name: 'Rahul Sharma',
     grade: '12th',
-    subscriptionTier: SubscriptionTier.premium,
+    subscriptionTier: SubscriptionTier.pro,
     subscriptionExpiry: DateTime(2027, 5, 1),
     createdAt: DateTime(2026, 1, 15),
     hasTakenDiagnostic: true,

@@ -220,4 +220,17 @@ class PracticeRepository {
           params: {'p_qid': questionId, 'p_correct': correct});
     } catch (_) {/* best-effort */}
   }
+
+  /// Report a bad pooled question (pool-poisoning guard, §5.3/§11). Reports are
+  /// deduped per user server-side; once enough distinct students flag it the
+  /// question is quarantined out of the active pool. Best-effort — a failed
+  /// report never blocks the UI.
+  Future<void> reportQuestion(String questionId, {String? reason}) async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return;
+      await _client.rpc('report_question',
+          params: {'p_user': userId, 'p_qid': questionId, 'p_reason': reason});
+    } catch (_) {/* best-effort */}
+  }
 }

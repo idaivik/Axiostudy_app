@@ -12,6 +12,7 @@ import '../../analytics/domain/analytics_models.dart';
 import '../../analytics/domain/chapter_insight_models.dart';
 import '../../practice/data/practice_providers.dart';
 import '../../practice/data/practice_repository.dart';
+import '../../subscription/presentation/paywall_screen.dart';
 import '../../test/domain/test_models.dart';
 import '../../../shared/models/enums.dart';
 import 'widgets/subject_breakdown_card.dart';
@@ -879,20 +880,61 @@ class _PostResultActionsCardState extends ConsumerState<_PostResultActionsCard> 
               count: 3,
             );
         if (!result.ok) {
-          _toast(result.message);
+          // Per §5.5 the only surviving failure paths (HTTP 402) are the trial
+          // AI lock and no-entitlement — every active paid tier instead succeeds
+          // or silently falls back to bank questions (ok:true) above.
+          if (result.isTrialLocked) {
+            _showTrialLocked();
+          } else if (result.isNoEntitlement) {
+            if (mounted) {
+              await PaywallScreen.showUpgrade(context, tier: SubscriptionTier.pro);
+            }
+          } else {
+            _toast(result.message); // generation_empty / transient error
+          }
           return;
         }
+        // ok — questions may be freshly generated ('ai'), or served from the
+        // shared pool / bank ('pool'/'bank'). The fallback is silent: no wall.
         final qs = result.questions;
-        await _launch(Test(
-          id: PracticeRepository.adaptiveTestId,
-          name: 'AI Generated Practice',
-          type: TestType.practice,
-          duration: Duration(minutes: (qs.length * 1.5).ceil().clamp(5, 60)),
-          totalQuestions: qs.length,
-          subjectIds: qs.map((q) => q.subjectId).toSet().toList(),
-          questions: qs,
-        ));
+        await _launch(
+          Test(
+            id: PracticeRepository.adaptiveTestId,
+            name: 'AI Generated Practice',
+            type: TestType.practice,
+            duration: Duration(minutes: (qs.length * 1.5).ceil().clamp(5, 60)),
+            totalQuestions: qs.length,
+            subjectIds: qs.map((q) => q.subjectId).toSet().toList(),
+            questions: qs,
+          ),
+          emptyMsg: 'No questions available for that chapter yet — try again soon.',
+        );
       });
+
+  /// The 7-day-trial AI hard-lock state. The student is already paying (trialing),
+  /// so this is NOT the paywall — it tells them when AI switches on.
+  void _showTrialLocked() {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        icon: Icon(LucideIcons.lock, color: AppColors.primary),
+        title: const Text('Unlocks when your trial converts'),
+        content: const Text(
+          'AI question generation switches on the moment your free trial becomes '
+          'a paid plan. Everything else — adaptive practice, your full analysis, '
+          'and the question bank — is live right now.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

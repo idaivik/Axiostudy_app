@@ -15,6 +15,6 @@ alter table public.profiles
 comment on column public.profiles.subscription_platform is
   'Store that processed the subscription: play_store | app_store.';
 comment on column public.profiles.store_product_id is
-  'Store product identifier of the active subscription (e.g. axio_premium_monthly).';
+  'Store product identifier of the active subscription (e.g. axio_premium).';
 comment on column public.profiles.store_transaction_id is
   'Most recent store transaction id for the subscription.';

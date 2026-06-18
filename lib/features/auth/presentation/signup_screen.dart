@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/validators.dart';
 import '../../../core/widgets/axio_button.dart';
 import '../data/auth_providers.dart';
 import '../data/auth_repository.dart';
@@ -27,6 +28,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen>
   bool _obscurePassword = true;
   String? _errorMessage;
   String? _infoMessage;
+  // Email awaiting confirmation — enables the "Resend" action under the banner.
+  String? _pendingEmail;
+  bool _isResending = false;
 
   late AnimationController _fadeController;
   late AnimationController _slideController;
@@ -97,7 +101,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen>
       setState(() => _errorMessage = 'Please fill in all the fields.');
       return;
     }
-    if (!email.contains('@') || !email.contains('.')) {
+    if (!Validators.isValidEmail(email)) {
       setState(() => _errorMessage = 'Please enter a valid email address.');
       return;
     }
@@ -118,11 +122,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen>
       ref.invalidate(currentUserProvider);
       // Router gating takes over and routes to exam selection.
       if (mounted) context.go('/onboarding/exam');
-    } on EmailConfirmationRequired {
+    } on EmailConfirmationRequired catch (e) {
       if (mounted) {
         setState(() {
           _infoMessage =
-              'Account created. Please confirm your email, then log in to continue.';
+              'Account created! We\'ve sent a confirmation link to $email. '
+              'Tap it on this device to verify — it will bring you straight '
+              'back into the app.';
+          _pendingEmail = e.email;
         });
       }
     } catch (e) {
@@ -139,6 +146,32 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen>
       if (mounted) setState(() => _errorMessage = msg);
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleResend() async {
+    final email = _pendingEmail;
+    if (email == null) return;
+    setState(() => _isResending = true);
+    try {
+      await ref.read(authRepositoryProvider).resendConfirmationEmail(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Confirmation email resent to $email'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.primary,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _errorMessage =
+            'Could not resend the email. Please try again in a moment.');
+      }
+    } finally {
+      if (mounted) setState(() => _isResending = false);
     }
   }
 
@@ -282,6 +315,43 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen>
                               ],
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          if (_pendingEmail != null)
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _isResending ? null : _handleResend,
+                                icon: _isResending
+                                    ? SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: AppColors.primary,
+                                        ),
+                                      )
+                                    : Icon(LucideIcons.mail,
+                                        size: 16, color: AppColors.primary),
+                                label: Text(
+                                  'Resend confirmation email',
+                                  style: AppTypography.bodyMedium.copyWith(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  side: BorderSide(
+                                    color:
+                                        AppColors.primary.withValues(alpha: 0.4),
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                              ),
+                            ),
                           const SizedBox(height: 20),
                         ],
 
