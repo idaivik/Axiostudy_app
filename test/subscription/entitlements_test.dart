@@ -116,6 +116,34 @@ void main() {
     });
   });
 
+  group('Bucket 1 tier surfaces (BILLING_BUCKET1_BUILD_PROMPT.md §8)', () {
+    final basic = _user(tier: SubscriptionTier.basic);
+    final pro = _user(tier: SubscriptionTier.pro);
+
+    test('Basic gets the templated question breakdown', () {
+      expect(basic.can(Feature.basicQuestionBreakdown), isTrue);
+    });
+
+    test('Pro gets the AI analysis narrative + advanced breakdown (formulas)', () {
+      expect(pro.can(Feature.aiAnalysisNarrative), isTrue);
+      expect(pro.can(Feature.advancedBreakdown), isTrue);
+    });
+
+    test('Basic is locked out of the Pro-only narrative + advanced breakdown', () {
+      expect(basic.can(Feature.aiAnalysisNarrative), isFalse);
+      expect(basic.can(Feature.advancedBreakdown), isFalse);
+    });
+
+    test('revision reminders: Basic rule-based, Pro spaced-rep (one engine)', () {
+      // Feature 1 is channeled by tier — Basic uses revisionReminders, Pro uses
+      // advancedRevisionPlan; neither tier holds the other's flavor.
+      expect(basic.can(Feature.revisionReminders), isTrue);
+      expect(basic.can(Feature.advancedRevisionPlan), isFalse);
+      expect(pro.can(Feature.advancedRevisionPlan), isTrue);
+      expect(pro.can(Feature.revisionReminders), isFalse);
+    });
+  });
+
   group('Pro→Basic downgrade (§10)', () {
     test('downgrade drops Pro-only capabilities but keeps the floor', () {
       final pro = _user(tier: SubscriptionTier.pro);

@@ -5,6 +5,7 @@ import 'app.dart';
 import 'core/billing/revenuecat.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/notifications/notification_service.dart';
+import 'core/notifications/fcm_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +22,11 @@ void main() async {
   final existingUser = Supabase.instance.client.auth.currentUser;
   if (existingUser != null) await RevenueCat.identify(existingUser.id);
 
-  // Best-effort: prepare local notifications (skip-practice reminders).
+  // Best-effort: prepare local notifications (immediate post-test nudge).
   await NotificationService.instance.init();
+  // Best-effort: init FCM for server-driven reminders. Dormant (no-op) until the
+  // Firebase project config is added — see supabase/functions/REMINDERS_SETUP.md.
+  await FcmService.instance.init();
 
   runApp(
     const ProviderScope(

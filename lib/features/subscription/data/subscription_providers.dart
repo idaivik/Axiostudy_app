@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/billing/revenuecat.dart';
 import '../../../shared/models/enums.dart';
@@ -41,7 +42,22 @@ class SubscriptionController {
         .purchase(plan: plan, period: period, user: user);
 
     if (!result.success) return result;
-    await _persist(user.id, result, fallbackTier: tier);
+
+    // The store purchase already succeeded here. The optimistic profile write
+    // below can still fail (network/RLS/timeout) — but if we let it throw, the
+    // exception unwinds all the way to the paywall and strands the spinner. So
+    // catch it and return a recoverable failure instead. The RevenueCat webhook
+    // reconciles the entitlement server-side regardless; "Restore purchases"
+    // re-applies it once connectivity returns.
+    try {
+      await _persist(user.id, result, fallbackTier: tier);
+    } catch (e, st) {
+      debugPrint('[Subscription] persist after purchase failed: $e\n$st');
+      return PurchaseResult.failure(
+        'Your trial started, but we couldn\'t finish setting up your account. '
+        'Check your connection and tap "Restore purchases".',
+      );
+    }
     // NOTE: Do NOT invalidate currentUserProvider here — doing so mid-flow puts
     // the provider into a loading state before navigation commits, which makes
     // the router guard block on isLoading and strands the paywall. The paywall
@@ -79,7 +95,9 @@ class SubscriptionController {
     final trialEnds =
         result.status == SubscriptionStatus.trialing ? expiry : null;
 
-    await _ref.read(authRepositoryProvider).activateSubscription(
+    await _ref
+        .read(authRepositoryProvider)
+        .activateSubscription(
           userId,
           tier: tier,
           status: result.status == SubscriptionStatus.none
@@ -90,6 +108,9 @@ class SubscriptionController {
           platform: result.platform.dbValue,
           storeProductId: result.productId,
           storeTransactionId: result.storeTransactionId,
-        );
+        )
+        // Don't let a stalled connection hang the write (and the spinner)
+        // indefinitely — fail fast so the caller can surface a retry.
+        .timeout(const Duration(seconds: 15));
   }
 }

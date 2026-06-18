@@ -65,23 +65,36 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       _processing = true;
     });
 
-    // The store renders its own purchase sheet; we just await the outcome.
-    final result = await ref
-        .read(subscriptionControllerProvider)
-        .startTrial(_selected, _period);
+    try {
+      // The store renders its own purchase sheet; we just await the outcome.
+      final result = await ref
+          .read(subscriptionControllerProvider)
+          .startTrial(_selected, _period);
 
-    if (!mounted) return;
-    if (!result.success) {
-      setState(() {
-        _processing = false;
+      if (!mounted) return;
+      if (!result.success) {
         // A user-cancelled sheet is not an error — stay silent.
-        _error = result.userCancelled
-            ? null
-            : (result.errorMessage ?? 'Payment was not completed.');
-      });
-      return;
+        setState(() {
+          _error = result.userCancelled
+              ? null
+              : (result.errorMessage ?? 'Payment was not completed.');
+        });
+        return;
+      }
+      _onSuccess();
+    } catch (e, st) {
+      // An unhandled exception here would otherwise leave the spinner stuck
+      // forever (the `finally` below now prevents that, but still surface it).
+      debugPrint('[Paywall] _startTrial threw: $e\n$st');
+      if (mounted) {
+        setState(() => _error =
+            'Something went wrong starting your trial. Please try again.');
+      }
+    } finally {
+      // ALWAYS clear the spinner — success, handled failure, early return, or
+      // a thrown exception — so the CTA can never hang on an infinite loader.
+      if (mounted) setState(() => _processing = false);
     }
-    _onSuccess();
   }
 
   Future<void> _restore() async {
@@ -90,17 +103,26 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       _processing = true;
     });
 
-    final result = await ref.read(subscriptionControllerProvider).restore();
+    try {
+      final result = await ref.read(subscriptionControllerProvider).restore();
 
-    if (!mounted) return;
-    if (!result.success) {
-      setState(() {
-        _processing = false;
-        _error = result.errorMessage ?? 'No purchase found to restore.';
-      });
-      return;
+      if (!mounted) return;
+      if (!result.success) {
+        setState(() {
+          _error = result.errorMessage ?? 'No purchase found to restore.';
+        });
+        return;
+      }
+      _onSuccess();
+    } catch (e, st) {
+      debugPrint('[Paywall] _restore threw: $e\n$st');
+      if (mounted) {
+        setState(() =>
+            _error = 'Could not restore purchases. Please try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _processing = false);
     }
-    _onSuccess();
   }
 
   /// In upgrade mode just close back to where the CTA was tapped (the profile /

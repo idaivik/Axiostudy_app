@@ -38,10 +38,16 @@ dependencies:
   url_launcher: ^6.3.1
   supabase_flutter: ^2.12.4
 
-  # Local notifications (skip-practice reminders — no Firebase/server)
+  # Local notifications (immediate, on-device post-test nudge)
   flutter_local_notifications: ^17.2.4
   timezone: ^0.9.4
   purchases_flutter: ^10.2.3
+
+  # Push notifications (Feature 1 — server-driven reminder engine via FCM).
+  # Dormant until the Firebase project config files are added (guarded init);
+  # see supabase/functions/REMINDERS_SETUP.md.
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
 
 dev_dependencies:
   flutter_test:

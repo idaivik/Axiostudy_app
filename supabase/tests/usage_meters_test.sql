@@ -89,6 +89,56 @@ begin
   if (r->>'ok')::boolean then raise exception 'free ai_questions should fail, got %', r; end if;
   if r->>'reason' <> 'no_entitlement' then raise exception 'free reason should be no_entitlement, got %', r; end if;
 
+  -- ── Feature 3: ai_analysis_narrative (Pro 60) — BILLING_BUCKET1 §8 ──
+  -- Pro: 60 ok, 61st soft-capped.
+  for i in 1..60 loop
+    r := public.consume_meter(pro, 'ai_analysis_narrative', 1);
+    if not (r->>'ok')::boolean then
+      raise exception 'pro narrative #% should succeed, got %', i, r;
+    end if;
+  end loop;
+  if (r->>'remaining')::int <> 0 then
+    raise exception 'pro narrative remaining after 60 should be 0, got %', r;
+  end if;
+  r := public.consume_meter(pro, 'ai_analysis_narrative', 1);
+  if (r->>'ok')::boolean then raise exception 'pro narrative 61 should fail, got %', r; end if;
+  if r->>'reason' <> 'cap_reached' then raise exception 'pro narrative 61 reason should be cap_reached, got %', r; end if;
+
+  -- Trial: ai_analysis_narrative is an ai_ meter → hard-locked.
+  r := public.consume_meter(trial, 'ai_analysis_narrative', 1);
+  if (r->>'ok')::boolean then raise exception 'trial narrative should fail, got %', r; end if;
+  if r->>'reason' <> 'trial_ai_locked' then raise exception 'trial narrative reason should be trial_ai_locked, got %', r; end if;
+
+  -- (Basic→ai_analysis_narrative no_entitlement is already asserted above.)
+
+  -- ── Feature 2: question_breakdown (Basic 40 / Pro 200) — BILLING_BUCKET1 §8 ──
+  -- NOTE: 'trial' already consumed 1 question_breakdown above (non-ai meter is
+  -- NOT trial-locked), but that's a different user from basic/pro below.
+  for i in 1..40 loop
+    r := public.consume_meter(basic, 'question_breakdown', 1);
+    if not (r->>'ok')::boolean then
+      raise exception 'basic breakdown #% should succeed, got %', i, r;
+    end if;
+  end loop;
+  r := public.consume_meter(basic, 'question_breakdown', 1);
+  if (r->>'ok')::boolean then raise exception 'basic breakdown 41 should fail, got %', r; end if;
+  if r->>'reason' <> 'cap_reached' then raise exception 'basic breakdown 41 reason should be cap_reached, got %', r; end if;
+
+  for i in 1..200 loop
+    r := public.consume_meter(pro, 'question_breakdown', 1);
+    if not (r->>'ok')::boolean then
+      raise exception 'pro breakdown #% should succeed, got %', i, r;
+    end if;
+  end loop;
+  r := public.consume_meter(pro, 'question_breakdown', 1);
+  if (r->>'ok')::boolean then raise exception 'pro breakdown 201 should fail, got %', r; end if;
+  if r->>'reason' <> 'cap_reached' then raise exception 'pro breakdown 201 reason should be cap_reached, got %', r; end if;
+
+  -- Narrative CACHING (second open spends no meter) is enforced in the
+  -- analysis-narrative edge fn (it returns the cached attempt_analytics.ai_narrative
+  -- BEFORE calling consume_meter), so it can't be exercised from pure SQL here —
+  -- the meter never sees the second open. Covered by the edge fn's cache check.
+
   raise notice 'usage_meters: ALL TESTS PASSED';
 end $$;
 

@@ -23,14 +23,11 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+// Model pick is centralized in _shared/gemini.ts (§2.1). Generation stays on
+// GEMINI_MODEL — a wrong answer key is worse than no question (§6). The cheap
+// model lives in the same module for the narrative/breakdown/formula surfaces.
+import { GEMINI_API_KEY, GEMINI_MODEL } from "../_shared/gemini.ts";
 
-// Generation stays on Flash — a wrong answer key is worse than no question (§6).
-const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
-// Cheap model for NON-correctness surfaces (narrative, breakdowns, roadmaps,
-// notes, formula sheets). Generation here never uses it; it exists so those
-// consumers route through one constant (§6). ~5–6× cheaper output.
-const GEMINI_CHEAP_MODEL = Deno.env.get("GEMINI_CHEAP_MODEL") ?? "gemini-2.5-flash-lite";
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const MAX_COUNT = 5;
 const METER = "ai_questions";
 

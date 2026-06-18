@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/billing/revenuecat.dart';
+import '../../../core/notifications/fcm_service.dart';
 import '../../../core/supabase/supabase_config.dart';
 import '../../../shared/models/enums.dart';
 import '../domain/user_model.dart';
@@ -187,6 +188,9 @@ class AuthRepository {
   /// Sign out the current user. Also detaches RevenueCat so a subsequent login
   /// on the same device doesn't inherit this user's entitlements.
   Future<void> signOut() async {
+    // Clear the device's push token BEFORE signing out, while the RLS delete is
+    // still authorized, so the next user on this device doesn't inherit it.
+    await FcmService.instance.clearToken();
     await RevenueCat.logoutBestEffort();
     await _client.auth.signOut();
   }

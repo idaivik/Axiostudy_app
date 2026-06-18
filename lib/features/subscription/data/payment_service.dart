@@ -1,3 +1,6 @@
+import 'dart:async' show TimeoutException;
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show PlatformException;
 // Hide RevenueCat's PurchaseResult to avoid a name clash with our domain
 // PurchaseResult; we only consume RC's return value via type inference.
@@ -76,8 +79,14 @@ class RevenueCatPaymentService implements PaymentService {
     try {
       await RevenueCat.identify(user.id);
 
-      final offerings = await Purchases.getOfferings();
+      // Fetching offerings can stall on a bad connection; cap it so we surface a
+      // retryable error instead of leaving the caller (and its spinner) waiting.
+      final offerings =
+          await Purchases.getOfferings().timeout(const Duration(seconds: 20));
       final offering = offerings.current;
+      debugPrint('[RC] getOfferings → current=${offering?.identifier} '
+          'packages=${offering?.availablePackages.length ?? 0} '
+          'allOfferings=${offerings.all.keys.toList()}');
       if (offering == null) {
         return PurchaseResult.failure(
           'Subscriptions are unavailable right now. Please try again later.',
@@ -86,24 +95,37 @@ class RevenueCatPaymentService implements PaymentService {
 
       final package = _findPackage(offering, plan, period);
       if (package == null) {
+        debugPrint('[RC] no package matched plan=${plan.name} period=$period '
+            'in [${offering.availablePackages.map((p) => p.identifier).join(', ')}]');
         return PurchaseResult.failure(
           'The ${plan.name} plan is not available on your store account yet.',
         );
       }
 
+      debugPrint('[RC] purchasing package=${package.identifier} '
+          'product=${package.storeProduct.identifier}');
       final result = await Purchases.purchase(PurchaseParams.package(package));
+      debugPrint('[RC] purchase returned; entitlements active='
+          '${result.customerInfo.entitlements.active.keys.toList()}');
       return _fromCustomerInfo(
         result.customerInfo,
         preferredTier: plan.tier,
         transaction: result.storeTransaction,
       );
+    } on TimeoutException catch (e) {
+      debugPrint('[RC] getOfferings timed out: $e');
+      return PurchaseResult.failure(
+        'Couldn\'t reach the store. Check your connection and try again.',
+      );
     } on PlatformException catch (e) {
+      debugPrint('[RC] purchase PlatformException: ${e.code} ${e.message}');
       final code = PurchasesErrorHelper.getErrorCode(e);
       if (code == PurchasesErrorCode.purchaseCancelledError) {
         return PurchaseResult.cancelled();
       }
       return PurchaseResult.failure(_messageFor(code, e));
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[RC] purchase unexpected error: $e\n$st');
       return PurchaseResult.failure('Purchase failed: $e');
     }
   }

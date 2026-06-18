@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/notifications/fcm_service.dart';
+import '../../../core/notifications/notification_prefs.dart';
+import '../../../core/notifications/notification_prefs_providers.dart';
+import '../../../core/notifications/notification_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/animations.dart';
@@ -8,17 +13,61 @@ import '../../../core/widgets/animations.dart';
 /// Settings screen — the SINGLE place for all app settings.
 /// Rendered as a primary navigation tab inside the app shell.
 /// All toggles and buttons are functional.
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notifications = true;
-  bool _dailyReminders = true;
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  // Feature 1 — reminder prefs (persisted to notification_prefs).
+  NotificationPrefs _prefs = NotificationPrefs.defaults;
   String _language = 'English';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final loaded = await ref.read(notificationPrefsRepositoryProvider).load();
+      if (mounted) setState(() => _prefs = loaded);
+    });
+  }
+
+  Future<void> _savePrefs(NotificationPrefs next) async {
+    setState(() => _prefs = next);
+    await ref.read(notificationPrefsRepositoryProvider).save(next);
+    ref.invalidate(notificationPrefsProvider);
+  }
+
+  Future<void> _setRemindersEnabled(bool enabled) async {
+    if (enabled) {
+      // Ask for the OS permission at the moment the user opts in, and register
+      // the FCM token for server-driven reminders (no-op until Firebase is set).
+      await NotificationService.instance.requestPermission();
+      await FcmService.instance.requestPermissionAndRegister();
+    }
+    await _savePrefs(_prefs.copyWith(enabled: enabled));
+    if (mounted) {
+      _showSnack(context, enabled ? 'Reminders on' : 'Reminders off');
+    }
+  }
+
+  Future<void> _pickQuietHours() async {
+    final start = await showTimePicker(
+      context: context,
+      initialTime: _prefs.quietStart,
+      helpText: 'Quiet hours start',
+    );
+    if (start == null || !mounted) return;
+    final end = await showTimePicker(
+      context: context,
+      initialTime: _prefs.quietEnd,
+      helpText: 'Quiet hours end',
+    );
+    if (end == null) return;
+    await _savePrefs(_prefs.copyWith(quietStart: start, quietEnd: end));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,23 +75,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _SectionHeader('Notifications'),
       _ToggleItem(
         icon: LucideIcons.bell,
-        label: 'Push Notifications',
-        subtitle: 'Get test reminders and updates',
-        value: _notifications,
-        onChanged: (v) {
-          setState(() => _notifications = v);
-          _showSnack(context, v ? 'Notifications enabled' : 'Notifications disabled');
-        },
+        label: 'Revision Reminders',
+        subtitle: 'Nudges to revise your weak chapters',
+        value: _prefs.enabled,
+        onChanged: _setRemindersEnabled,
       ),
-      _ToggleItem(
-        icon: LucideIcons.alarmClock,
-        label: 'Daily Reminders',
-        subtitle: 'Remind me to study every day',
-        value: _dailyReminders,
-        onChanged: (v) {
-          setState(() => _dailyReminders = v);
-          _showSnack(context, v ? 'Daily reminders on' : 'Daily reminders off');
-        },
+      _TapItem(
+        icon: LucideIcons.moon,
+        label: 'Quiet Hours',
+        subtitle: 'No reminders during these hours',
+        value: _prefs.quietRangeLabel(context),
+        onTap: _prefs.enabled ? _pickQuietHours : null,
       ),
       const SizedBox(height: 16),
       _SectionHeader('Study Plan'),

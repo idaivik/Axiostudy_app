@@ -12,6 +12,10 @@ import '../../analytics/domain/analytics_models.dart';
 import '../../analytics/domain/chapter_insight_models.dart';
 import '../../practice/data/practice_providers.dart';
 import '../../practice/data/practice_repository.dart';
+import '../../subscription/domain/entitlements.dart';
+import '../../subscription/domain/meter_outcome.dart';
+import '../../subscription/presentation/ai_locked_card.dart';
+import '../../subscription/presentation/feature_gate.dart';
 import '../../subscription/presentation/paywall_screen.dart';
 import '../../test/domain/test_models.dart';
 import '../../../shared/models/enums.dart';
@@ -19,6 +23,8 @@ import 'widgets/subject_breakdown_card.dart';
 import 'widgets/chapter_analysis_card.dart';
 import 'widgets/time_analysis_card.dart';
 import 'widgets/accuracy_metrics_card.dart';
+import 'widgets/mistakes_review_card.dart';
+import 'widgets/formulas_to_learn_card.dart';
 
 // Sequence step 16-18: Display weakness analysis → Show strength areas → Recommend practice tests
 class ResultsScreen extends ConsumerStatefulWidget {
@@ -219,6 +225,17 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
 
           const SizedBox(height: 16),
 
+          // Feature 3 — AI coach summary (Pro), above the charts. FeatureGate
+          // shows the upgrade upsell to Basic; Pro renders the metered card.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: FeatureGate(
+              feature: Feature.aiAnalysisNarrative,
+              child: (_) => _AiNarrativeCard(attemptId: widget.attemptId),
+            ),
+          ),
+          const SizedBox(height: 12),
+
           // AI chapter insights (server weakness engine) — primary guidance.
           if (insights.isNotEmpty)
             Padding(
@@ -256,6 +273,24 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
 
           if (analytics != null && analytics.strongTopics.isNotEmpty)
             const SizedBox(height: 12),
+
+          // Feature 2 — Review your mistakes (Basic/Pro; metered per open).
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: MistakesReviewCard(attemptId: widget.attemptId),
+          ),
+          const SizedBox(height: 12),
+
+          // Feature 4 — Formulas to learn (Pro). Hidden for Basic (no upsell);
+          // the card hides itself when nothing is curated for the weak topics.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: FeatureGate(
+              feature: Feature.advancedBreakdown,
+              locked: (_) => const SizedBox.shrink(),
+              child: (_) => FormulasToLearnCard(attemptId: widget.attemptId),
+            ),
+          ),
 
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -814,6 +849,113 @@ class _InsightRow extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ── Feature 3: AI coach summary (Pro, metered) ───────────────────────────────
+class _AiNarrativeCard extends ConsumerWidget {
+  final String attemptId;
+  const _AiNarrativeCard({required this.attemptId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(analysisNarrativeProvider(attemptId));
+    return async.when(
+      loading: () => const _NarrativeBody(text: null),
+      error: (_, _) => const AiLockedCard(
+        status: MeterStatus.error,
+        featureTitle: 'AI coach summary',
+      ),
+      data: (res) {
+        final text = res.narrative;
+        if (res.outcome.ok && text != null && text.isNotEmpty) {
+          return _NarrativeBody(text: text);
+        }
+        return AiLockedCard(
+          status: res.outcome.status,
+          featureTitle: 'AI coach summary',
+        );
+      },
+    );
+  }
+}
+
+/// The narrative card itself. A null [text] renders the loading state so the
+/// card never pops in/out (it holds its place above the charts).
+class _NarrativeBody extends StatelessWidget {
+  final String? text;
+  const _NarrativeBody({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.greenSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(LucideIcons.sparkles, size: 15, color: AppColors.primary),
+              ),
+              const SizedBox(width: 10),
+              Text('Your AI coach', style: AppTypography.heading3),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (text == null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                _ShimmerLine(widthFactor: 1.0),
+                SizedBox(height: 8),
+                _ShimmerLine(widthFactor: 0.92),
+                SizedBox(height: 8),
+                _ShimmerLine(widthFactor: 0.6),
+              ],
+            )
+          else
+            Text(
+              text!,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textDark,
+                height: 1.45,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShimmerLine extends StatelessWidget {
+  final double widthFactor;
+  const _ShimmerLine({required this.widthFactor});
+
+  @override
+  Widget build(BuildContext context) {
+    return FractionallySizedBox(
+      widthFactor: widthFactor,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        height: 12,
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(6),
+        ),
       ),
     );
   }

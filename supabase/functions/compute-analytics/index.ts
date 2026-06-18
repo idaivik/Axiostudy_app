@@ -17,12 +17,11 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-// gemini-2.5-flash is the cheap/fast default (confirmed available on this key;
-// gemini-2.0-flash reports free-tier limit:0). Override with the GEMINI_MODEL
-// secret without redeploying — e.g. point at Claude Haiku's stand-in later.
-const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
+// Model pick is centralized in _shared/gemini.ts (§2.1). The insight call here
+// ranks weak chapters + classifies error type (judgement, not free prose), so
+// it stays on GEMINI_MODEL; override via the GEMINI_MODEL secret without a
+// redeploy — e.g. point at Claude Haiku's stand-in later.
+import { GEMINI_API_KEY, GEMINI_MODEL } from "../_shared/gemini.ts";
 
 const WEAK_THRESHOLD = 50; // score_percentage below this = weak chapter
 const STRONG_THRESHOLD = 75; // above this = mastered/strong

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1017435365536",
+    "project_id": "axiostudy-e6016",
+    "storage_bucket": "axiostudy-e6016.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1017435365536:android:162af248bf863e4201a9c5",
+        "android_client_info": {
+          "package_name": "com.axiostudy.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA1_4EDTdAE4Yg5k1a3iS0O9-4DtSjTiJg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

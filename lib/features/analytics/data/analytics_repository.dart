@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/analytics_models.dart';
 import '../domain/chapter_insight_models.dart';
+import '../domain/narrative_result.dart';
 
 /// Repository for reading/writing analytics data to Supabase.
 class AnalyticsRepository {
@@ -120,6 +121,32 @@ class AnalyticsRepository {
       return AttemptAnalyticsResult.fromJson(data);
     } catch (_) {
       return null;
+    }
+  }
+
+  // ─── AI Analysis Narrative (Feature 3, Pro) ───
+
+  /// Fetch (or generate-and-cache) the AI coach paragraph for an attempt via the
+  /// `analysis-narrative` edge function. The server caches per attempt, so a
+  /// re-open returns the same text without spending a meter. Never throws — maps
+  /// every outcome (incl. 402 trial-lock / paywall) to a [NarrativeResult].
+  Future<NarrativeResult> getAnalysisNarrative(String attemptId) async {
+    try {
+      final res = await _client.functions.invoke(
+        'analysis-narrative',
+        body: {'attempt_id': attemptId},
+      );
+      final data = res.data;
+      if (data is Map<String, dynamic>) return NarrativeResult.fromJson(data);
+      return NarrativeResult.error;
+    } on FunctionException catch (e) {
+      // Non-2xx (e.g. 402 trial_ai_locked / no_entitlement) lands here with the
+      // parsed body.
+      final details = e.details;
+      if (details is Map<String, dynamic>) return NarrativeResult.fromJson(details);
+      return NarrativeResult.error;
+    } catch (_) {
+      return NarrativeResult.error;
     }
   }
 

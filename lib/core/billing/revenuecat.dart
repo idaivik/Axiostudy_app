@@ -44,11 +44,16 @@ class RevenueCat {
 
   /// Initialize the SDK once at startup (call from main before runApp).
   static Future<void> init() async {
-    if (!RevenueCatConfig.isConfigured) return;
+    if (!RevenueCatConfig.isConfigured) {
+      debugPrint('[RC] init skipped — no SDK key for this platform; '
+          'using SimulatedPaymentService');
+      return;
+    }
     if (kDebugMode) await Purchases.setLogLevel(LogLevel.debug);
-    await Purchases.configure(
-      PurchasesConfiguration(RevenueCatConfig.apiKeyForPlatform),
-    );
+    final key = RevenueCatConfig.apiKeyForPlatform;
+    await Purchases.configure(PurchasesConfiguration(key));
+    debugPrint('[RC] configured with key '
+        '${key.substring(0, key.length.clamp(0, 8))}…');
   }
 
   /// Attribute purchases to the Supabase user id. The same id is what the

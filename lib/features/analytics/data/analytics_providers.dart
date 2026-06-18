@@ -4,6 +4,7 @@ import '../../auth/data/auth_providers.dart';
 import '../domain/analytics_models.dart';
 import '../domain/chapter_insight_models.dart';
 import '../domain/chart_data_models.dart';
+import '../domain/narrative_result.dart';
 import 'analytics_repository.dart';
 import 'analytics_engine.dart';
 import '../../../shared/models/enums.dart';
@@ -24,6 +25,17 @@ final attemptAnalyticsProvider =
         (ref, attemptId) async {
   final repo = ref.watch(analyticsRepositoryProvider);
   return repo.getAttemptAnalytics(attemptId);
+});
+
+/// AI analysis narrative for an attempt (Feature 3, Pro). Lazily calls the
+/// `analysis-narrative` edge function; the server caches per attempt so a second
+/// watch of the same attempt costs no meter. `keepAlive` so re-builds of the
+/// results screen (animations, scroll) don't re-invoke the function.
+final analysisNarrativeProvider =
+    FutureProvider.family<NarrativeResult, String>((ref, attemptId) async {
+  ref.keepAlive();
+  final repo = ref.watch(analyticsRepositoryProvider);
+  return repo.getAnalysisNarrative(attemptId);
 });
 
 /// All topic performance for the current user.
