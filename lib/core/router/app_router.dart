@@ -125,6 +125,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
           child: const ProfileScreen(),
+          // Non-opaque so that, on tablets where the profile docks as a slim
+          // left panel, the screen behind it stays visible through the scrim.
+          opaque: false,
           transitionDuration: const Duration(milliseconds: 320),
           reverseTransitionDuration: const Duration(milliseconds: 260),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {

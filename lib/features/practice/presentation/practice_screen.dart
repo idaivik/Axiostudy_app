@@ -8,6 +8,7 @@ import '../../../core/widgets/animations.dart';
 import '../../../core/widgets/progress_bar.dart';
 import '../../../core/widgets/subject_badge.dart';
 import '../../../core/widgets/gradient_background.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/router/swipe_nav_provider.dart';
 import '../../../shared/models/enums.dart';
 import '../../subjects/data/subjects_providers.dart';
@@ -252,13 +253,51 @@ class _TopicsTab extends ConsumerWidget {
                 child: Text('Failed to load subjects', style: AppTypography.bodyMedium),
               )),
             ),
-            data: (subjects) => SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final subject = subjects[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _SubjectCard(
+            data: (subjects) {
+              // On wider screens (tablets / landscape) lay the subjects out in
+              // a 2–3 column grid of compact cards; phones keep the original
+              // single-column list of full-width cards.
+              final columns = Responsive.subjectColumns(
+                MediaQuery.of(context).size.width,
+              );
+              if (columns == 1) {
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final subject = subjects[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _SubjectCard(
+                          name: subject.name,
+                          iconData: subject.iconData,
+                          completion: subject.completionPercentage,
+                          totalQuestions: subject.totalQuestions,
+                          chapterCount: subject.chapters.length,
+                          gradient: _gradientFor(subject.type),
+                          weakChapter: subject.chapters
+                              .where((c) => c.strength == TopicStrength.weak)
+                              .map((c) => c.name)
+                              .firstOrNull,
+                          onTap: () => context.push('/subjects/${subject.id}'),
+                        ),
+                      );
+                    },
+                    childCount: subjects.length,
+                  ),
+                );
+              }
+              return SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  mainAxisExtent: 184,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final subject = subjects[index];
+                    return _SubjectCard(
+                      vertical: true,
                       name: subject.name,
                       iconData: subject.iconData,
                       completion: subject.completionPercentage,
@@ -270,12 +309,12 @@ class _TopicsTab extends ConsumerWidget {
                           .map((c) => c.name)
                           .firstOrNull,
                       onTap: () => context.push('/subjects/${subject.id}'),
-                    ),
-                  );
-                },
-                childCount: subjects.length,
-              ),
-            ),
+                    );
+                  },
+                  childCount: subjects.length,
+                ),
+              );
+            },
           ),
         ),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -302,6 +341,10 @@ class _SubjectCard extends StatelessWidget {
   final String? weakChapter;
   final VoidCallback? onTap;
 
+  /// Compact, top-to-bottom layout used inside the multi-column grid on wide
+  /// screens. The default ([false]) is the full-width horizontal card.
+  final bool vertical;
+
   const _SubjectCard({
     required this.name,
     required this.iconData,
@@ -311,25 +354,29 @@ class _SubjectCard extends StatelessWidget {
     required this.gradient,
     this.weakChapter,
     this.onTap,
+    this.vertical = false,
   });
+
+  BoxDecoration get _cardDecoration => BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      );
 
   @override
   Widget build(BuildContext context) {
+    if (vertical) return _buildVertical();
     return PressableScale(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.06),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+        decoration: _cardDecoration,
         child: Column(
           children: [
             Row(
@@ -373,6 +420,77 @@ class _SubjectCard extends StatelessWidget {
                   const SubjectBadge(strength: TopicStrength.weak),
                   const SizedBox(width: 6),
                   Text(weakChapter!, style: AppTypography.caption),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Compact card for the multi-column grid: icon and completion on top, then
+  /// the title/stats, with the progress bar pinned to the bottom so every cell
+  /// in a row lines up regardless of content.
+  Widget _buildVertical() {
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: gradient,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Center(
+                    child: Icon(iconData, size: 24, color: Colors.white),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${(completion * 100).round()}%',
+                  style: AppTypography.heading3.copyWith(color: AppColors.primary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              name,
+              style: AppTypography.heading3,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '$chapterCount chapters  |  $totalQuestions Qs',
+              style: AppTypography.caption,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const Spacer(),
+            ProgressBar(progress: completion, height: 6),
+            if (weakChapter != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const SubjectBadge(strength: TopicStrength.weak),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      weakChapter!,
+                      style: AppTypography.caption,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ],

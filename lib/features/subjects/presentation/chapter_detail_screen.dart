@@ -11,10 +11,11 @@ import '../../../core/widgets/progress_bar.dart';
 import '../../../core/widgets/subject_badge.dart';
 import '../data/subjects_providers.dart';
 import '../domain/subject_models.dart';
+import '../domain/chapter_grade.dart';
 import '../../../shared/models/enums.dart';
 import '../../practice/data/practice_providers.dart';
 
-class ChapterDetailScreen extends ConsumerWidget {
+class ChapterDetailScreen extends ConsumerStatefulWidget {
   final String subjectId;
 
   /// When set (e.g. deep-linked from the roadmap), this chapter is auto-centred
@@ -28,7 +29,19 @@ class ChapterDetailScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChapterDetailScreen> createState() =>
+      _ChapterDetailScreenState();
+}
+
+class _ChapterDetailScreenState extends ConsumerState<ChapterDetailScreen> {
+  /// Selected class tab. Opens on the class of a deep-linked chapter so it's
+  /// visible, otherwise defaults to Class 11.
+  late ClassLevel _selected = widget.focusChapterId == null
+      ? ClassLevel.class11
+      : chapterClassLevel(widget.focusChapterId!);
+
+  @override
+  Widget build(BuildContext context) {
     final subjectsAsync = ref.watch(subjectsProvider);
 
     return subjectsAsync.when(
@@ -40,15 +53,25 @@ class ChapterDetailScreen extends ConsumerWidget {
       ),
       data: (subjects) {
         final subject = subjects.firstWhere(
-          (s) => s.id == subjectId,
+          (s) => s.id == widget.subjectId,
           orElse: () => subjects.first,
         );
-        final chapters = subject.chapters;
+        // Show only the selected class, listed bottom-up so the first chapter
+        // (lowest id) sits at the bottom — the natural starting point — with
+        // later chapters stacked above it in book order.
+        final chapters = subject.chapters
+            .where((c) => chapterClassLevel(c.id) == _selected)
+            .toList()
+            .reversed
+            .toList();
 
-        var focusIndex = focusChapterId == null
-            ? 0
-            : chapters.indexWhere((c) => c.id == focusChapterId);
-        if (focusIndex < 0) focusIndex = 0;
+        // Open focused on the first chapter (now the bottom-most), unless a
+        // specific chapter was deep-linked.
+        var focusIndex = chapters.isEmpty ? 0 : chapters.length - 1;
+        if (widget.focusChapterId != null) {
+          final i = chapters.indexWhere((c) => c.id == widget.focusChapterId);
+          if (i >= 0) focusIndex = i;
+        }
 
         return GradientBackground(
           appBar: AppBar(
@@ -65,26 +88,43 @@ class ChapterDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          child: chapters.isEmpty
-              ? Center(
-                  child: Text('No chapters yet', style: AppTypography.bodyMedium),
-                )
-              : Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: FocalScrollList(
-                    itemCount: chapters.length,
-                    itemExtent: 124,
-                    initialFocusIndex: focusIndex,
-                    itemBuilder: (context, i) {
-                      final chapter = chapters[i];
-                      return _ChapterFocalTile(
-                        chapter: chapter,
-                        highlighted: chapter.id == focusChapterId,
-                        onTap: () => _showChapterSheet(context, subject, chapter),
-                      );
-                    },
-                  ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+                child: _ClassToggle(
+                  selected: _selected,
+                  onChanged: (level) => setState(() => _selected = level),
                 ),
+              ),
+              Expanded(
+                child: chapters.isEmpty
+                    ? Center(
+                        child: Text('No chapters yet',
+                            style: AppTypography.bodyMedium),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        // Reset scroll/focus to the top whenever the class changes.
+                        child: FocalScrollList(
+                          key: ValueKey(_selected),
+                          itemCount: chapters.length,
+                          itemExtent: 124,
+                          initialFocusIndex: focusIndex,
+                          itemBuilder: (context, i) {
+                            final chapter = chapters[i];
+                            return _ChapterFocalTile(
+                              chapter: chapter,
+                              highlighted: chapter.id == widget.focusChapterId,
+                              onTap: () =>
+                                  _showChapterSheet(context, subject, chapter),
+                            );
+                          },
+                        ),
+                      ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -99,6 +139,82 @@ class ChapterDetailScreen extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetContext) => _ChapterSheet(subject: subject, chapter: chapter),
+    );
+  }
+}
+
+/// Segmented "Class 11 / Class 12" switch with a sliding pill indicator.
+class _ClassToggle extends StatelessWidget {
+  final ClassLevel selected;
+  final ValueChanged<ClassLevel> onChanged;
+
+  const _ClassToggle({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDark,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Stack(
+        children: [
+          // Sliding white pill behind the selected segment.
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            alignment: selected == ClassLevel.class11
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              heightFactor: 1.0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.slate900.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              _segment(ClassLevel.class11),
+              _segment(ClassLevel.class12),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segment(ClassLevel level) {
+    final isSelected = selected == level;
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onChanged(level),
+        child: Center(
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? AppColors.textDark : AppColors.textMedium,
+            ),
+            child: Text(level.label),
+          ),
+        ),
+      ),
     );
   }
 }

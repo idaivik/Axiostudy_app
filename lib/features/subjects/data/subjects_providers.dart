@@ -9,11 +9,18 @@ final subjectsRepositoryProvider = Provider<SubjectsRepository>((ref) {
   return SubjectsRepository(ref.watch(supabaseClientProvider));
 });
 
-/// Fetches all subjects with user progress merged in.
+/// Fetches the subjects relevant to the student's exam, with user progress
+/// merged in. JEE students see Physics/Chemistry/Mathematics (no Biology);
+/// NEET students see Physics/Chemistry/Biology (no Mathematics). When the exam
+/// isn't known yet (e.g. guest mode, pre-onboarding) all subjects are returned.
 final subjectsProvider = FutureProvider<List<Subject>>((ref) async {
   final repo = ref.watch(subjectsRepositoryProvider);
-  final userAsync = ref.watch(currentUserProvider);
-  final userId = userAsync.whenOrNull(data: (user) => user?.id);
+  final user = ref.watch(currentUserProvider).valueOrNull;
 
-  return await repo.getSubjects(userId: userId);
+  final subjects = await repo.getSubjects(userId: user?.id);
+
+  final examType = user?.examType;
+  if (examType == null) return subjects;
+  final allowed = examType.subjects.toSet();
+  return subjects.where((s) => allowed.contains(s.type)).toList();
 });

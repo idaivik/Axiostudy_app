@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../auth/data/auth_providers.dart';
 
 Future<void> showNotificationsSheet(BuildContext context) {
@@ -30,68 +31,94 @@ class _NotificationsPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hasTakenDiagnostic = ref.watch(hasTakenDiagnosticProvider);
-    final width = MediaQuery.of(context).size.width;
+    final size = MediaQuery.of(context).size;
+    final isTablet = Responsive.isTablet(context);
 
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          width: width * 0.84,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(24),
-              bottomLeft: Radius.circular(24),
+    // Phone: full-height sheet hugging the right edge. Tablet: a compact,
+    // floating card inset from the top-right corner so it doesn't span the
+    // whole screen horizontally or vertically.
+    final width = isTablet ? 380.0 : size.width * 0.84;
+
+    final panel = Material(
+      color: Colors.transparent,
+      child: Container(
+        width: width,
+        height: isTablet ? null : double.infinity,
+        constraints: isTablet
+            ? BoxConstraints(maxHeight: size.height * 0.7)
+            : const BoxConstraints(),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: isTablet
+              ? BorderRadius.circular(24)
+              : const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  bottomLeft: Radius.circular(24),
+                ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 32,
+              offset: const Offset(-6, 0),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 32,
-                offset: const Offset(-6, 0),
+          ],
+        ),
+        child: SafeArea(
+          // The tablet card already floats with its own margins, so it doesn't
+          // need to dodge the system insets.
+          top: !isTablet,
+          bottom: !isTablet,
+          child: Column(
+            mainAxisSize: isTablet ? MainAxisSize.min : MainAxisSize.max,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 8, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('Notifications', style: AppTypography.heading2),
+                    ),
+                    IconButton(
+                      icon: const Icon(LucideIcons.x, size: 20),
+                      color: AppColors.textMedium,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
               ),
+              const Divider(height: 1, color: AppColors.divider),
+              if (!hasTakenDiagnostic)
+                _NotificationTile(
+                  icon: LucideIcons.clipboardCheck,
+                  iconColor: AppColors.primary,
+                  iconBackground: AppColors.greenSurface,
+                  title: 'Diagnostic Test Pending',
+                  subtitle:
+                      'Complete it to unlock personalized AI study insights.',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    context.push('/test-selection');
+                  },
+                )
+              else
+                const _EmptyState(),
             ],
           ),
-          child: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 8, 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text('Notifications', style: AppTypography.heading2),
-                      ),
-                      IconButton(
-                        icon: const Icon(LucideIcons.x, size: 20),
-                        color: AppColors.textMedium,
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1, color: AppColors.divider),
-                if (!hasTakenDiagnostic)
-                  _NotificationTile(
-                    icon: LucideIcons.clipboardCheck,
-                    iconColor: AppColors.primary,
-                    iconBackground: AppColors.greenSurface,
-                    title: 'Diagnostic Test Pending',
-                    subtitle:
-                        'Complete it to unlock personalized AI study insights.',
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/test-selection');
-                    },
-                  )
-                else
-                  const _EmptyState(),
-              ],
-            ),
-          ),
+        ),
+      ),
+    );
+
+    if (!isTablet) {
+      return Align(alignment: Alignment.centerRight, child: panel);
+    }
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.topRight,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: panel,
         ),
       ),
     );

@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/progress_circle.dart';
 import '../../../core/widgets/gradient_background.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/router/swipe_nav_provider.dart';
 import '../../../shared/models/enums.dart';
 import '../data/analytics_providers.dart';
@@ -508,87 +509,89 @@ class _TopicsTab extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // ─── Subject Strength (per-subject + chapter-level mastery) ───
-          const StrengthMeterCard(),
-          const SizedBox(height: 8),
+          // Strength meter, mastery shape and weak/strong topics pair up two
+          // per row in landscape; on phones they stay in a single column.
+          ..._pairInWide(context, [
+            // ─── Subject Strength (per-subject + chapter-level mastery) ───
+            const StrengthMeterCard(),
 
-          // ─── Radar Chart ───
-          _SectionCard(
-            title: 'Mastery Shape',
-            subtitle: radarData.isEmpty
-                ? 'Take tests to visualize your strengths'
-                : 'Your top ${radarData.length} practiced topics',
-            icon: LucideIcons.hexagon,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Center(
-                child: RadarChartWidget(data: radarData),
+            // ─── Radar Chart ───
+            _SectionCard(
+              title: 'Mastery Shape',
+              subtitle: radarData.isEmpty
+                  ? 'Take tests to visualize your strengths'
+                  : 'Your top ${radarData.length} practiced topics',
+              icon: LucideIcons.hexagon,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Center(
+                  child: RadarChartWidget(data: radarData),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 14),
 
-          // Weak topics
-          _SectionCard(
-            title: 'Weak Topics',
-            subtitle: weakTopics.isEmpty
-                ? 'No weak topics detected yet'
-                : 'AI-detected areas to focus on',
-            icon: LucideIcons.alertTriangle,
-            iconColor: AppColors.wrong,
-            iconBg: AppColors.errorLight,
-            child: weakTopics.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Text(
-                      'Take a test to see your weak areas',
-                      style: AppTypography.bodyMedium,
+            // Weak topics
+            _SectionCard(
+              title: 'Weak Topics',
+              subtitle: weakTopics.isEmpty
+                  ? 'No weak topics detected yet'
+                  : 'AI-detected areas to focus on',
+              icon: LucideIcons.alertTriangle,
+              iconColor: AppColors.wrong,
+              iconBg: AppColors.errorLight,
+              child: weakTopics.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(
+                        'Take a test to see your weak areas',
+                        style: AppTypography.bodyMedium,
+                      ),
+                    )
+                  : Column(
+                      children: weakTopics.take(5).map((t) {
+                        final score = (t.accuracy * 100).round();
+                        final color =
+                            score < 35 ? AppColors.wrong : AppColors.weak;
+                        return _TopicBar(
+                          name: _topicDisplayName(t.topicId),
+                          subject: _subjectName(t.subjectId),
+                          score: score,
+                          color: color,
+                        );
+                      }).toList(),
                     ),
-                  )
-                : Column(
-                    children: weakTopics.take(5).map((t) {
-                      final score = (t.accuracy * 100).round();
-                      final color = score < 35 ? AppColors.wrong : AppColors.weak;
-                      return _TopicBar(
-                        name: _topicDisplayName(t.topicId),
-                        subject: _subjectName(t.subjectId),
-                        score: score,
-                        color: color,
-                      );
-                    }).toList(),
-                  ),
-          ),
-          const SizedBox(height: 14),
+            ),
 
-          // Strong topics
-          _SectionCard(
-            title: 'Strong Topics',
-            subtitle: strongTopics.isEmpty
-                ? 'No mastered topics yet'
-                : 'Topics you\'ve mastered',
-            icon: LucideIcons.checkCircle2,
-            iconColor: AppColors.primary,
-            iconBg: AppColors.greenSurface,
-            child: strongTopics.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Text(
-                      'Keep practicing to master topics',
-                      style: AppTypography.bodyMedium,
+            // Strong topics
+            _SectionCard(
+              title: 'Strong Topics',
+              subtitle: strongTopics.isEmpty
+                  ? 'No mastered topics yet'
+                  : 'Topics you\'ve mastered',
+              icon: LucideIcons.checkCircle2,
+              iconColor: AppColors.primary,
+              iconBg: AppColors.greenSurface,
+              child: strongTopics.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(
+                        'Keep practicing to master topics',
+                        style: AppTypography.bodyMedium,
+                      ),
+                    )
+                  : Column(
+                      children: strongTopics.take(5).map((t) {
+                        final score = (t.accuracy * 100).round();
+                        return _TopicBar(
+                          name: _topicDisplayName(t.topicId),
+                          subject: _subjectName(t.subjectId),
+                          score: score,
+                          color: AppColors.primary,
+                        );
+                      }).toList(),
                     ),
-                  )
-                : Column(
-                    children: strongTopics.take(5).map((t) {
-                      final score = (t.accuracy * 100).round();
-                      return _TopicBar(
-                        name: _topicDisplayName(t.topicId),
-                        subject: _subjectName(t.subjectId),
-                        score: score,
-                        color: AppColors.primary,
-                      );
-                    }).toList(),
-                  ),
-          ),
+            ),
+          ]),
           const SizedBox(height: 14),
 
           // ─── Skill Trees ───
@@ -674,44 +677,44 @@ class _TrendsTab extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // ─── Area Line Chart ───
-          _SectionCard(
-            title: 'Score Trend',
-            subtitle: trendData.isEmpty
-                ? 'Take tests to see your progress'
-                : 'Progress over ${trendData.length} tests',
-            icon: LucideIcons.trendingUp,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: AreaLineChartWidget(data: trendData),
+          // In landscape (or on tablets) these stack two-per-row to use the
+          // extra width; in portrait they fall back to a single column.
+          ..._pairInWide(context, [
+            // ─── Area Line Chart ───
+            _SectionCard(
+              title: 'Score Trend',
+              subtitle: trendData.isEmpty
+                  ? 'Take tests to see your progress'
+                  : 'Progress over ${trendData.length} tests',
+              icon: LucideIcons.trendingUp,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: AreaLineChartWidget(data: trendData),
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-
-          // ─── Scatter Plot ───
-          _SectionCard(
-            title: 'Speed vs. Accuracy',
-            subtitle: scatterData.isEmpty
-                ? 'Complete topics to analyze your patterns'
-                : '${scatterData.length} topics analyzed',
-            icon: LucideIcons.crosshair,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: ScatterPlotWidget(data: scatterData),
+            // ─── Scatter Plot ───
+            _SectionCard(
+              title: 'Speed vs. Accuracy',
+              subtitle: scatterData.isEmpty
+                  ? 'Complete topics to analyze your patterns'
+                  : '${scatterData.length} topics analyzed',
+              icon: LucideIcons.crosshair,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ScatterPlotWidget(data: scatterData),
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-
-          // Consistency patterns (real streak data)
-          _SectionCard(
-            title: 'Consistency Patterns',
-            subtitle: 'Study activity over last 30 days',
-            icon: LucideIcons.calendar,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: _ConsistencyGrid(recentActivity: streak.recentActivity),
+            // Consistency patterns (real streak data)
+            _SectionCard(
+              title: 'Consistency Patterns',
+              subtitle: 'Study activity over last 30 days',
+              icon: LucideIcons.calendar,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: _ConsistencyGrid(recentActivity: streak.recentActivity),
+              ),
             ),
-          ),
+          ]),
 
           const SizedBox(height: 80),
         ],
@@ -719,6 +722,42 @@ class _TrendsTab extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Arranges [cards] two-per-row on wide layouts (landscape / tablets) and as a
+/// single column otherwise. A trailing odd card keeps the half-width of a
+/// paired card with an empty slot beside it, so every card lines up. Returns
+/// the spaced-out rows, ready to splat into a [Column].
+List<Widget> _pairInWide(BuildContext context, List<Widget> cards) {
+  const gap = SizedBox(height: 14);
+  if (!Responsive.isWide(context)) {
+    return [
+      for (var i = 0; i < cards.length; i++) ...[
+        if (i > 0) gap,
+        cards[i],
+      ],
+    ];
+  }
+
+  final rows = <Widget>[];
+  for (var i = 0; i < cards.length; i += 2) {
+    if (i > 0) rows.add(gap);
+    final hasPartner = i + 1 < cards.length;
+    rows.add(
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: cards[i]),
+          const SizedBox(width: 14),
+          // Empty half keeps a lone trailing card the same width as the rest.
+          Expanded(
+            child: hasPartner ? cards[i + 1] : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+  return rows;
 }
 
 // ─── Reusable Components ───

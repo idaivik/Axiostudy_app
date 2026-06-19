@@ -122,6 +122,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _SectionHeader('Notifications'),
       _ToggleItem(
         icon: LucideIcons.bell,
+        accent: AppColors.primary,
         label: 'Revision Reminders',
         subtitle: 'Nudges to revise your weak chapters',
         value: _prefs.enabled,
@@ -129,24 +130,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       _TapItem(
         icon: LucideIcons.moon,
+        accent: AppColors.physics,
         label: 'Quiet Hours',
         subtitle: 'No reminders during these hours',
         value: _prefs.quietRangeLabel(context),
         onTap: _prefs.enabled ? _pickQuietHours : null,
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 18),
       _SectionHeader('Study Plan'),
       _TapItem(
         icon: LucideIcons.milestone,
+        accent: AppColors.mathematics,
         label: 'Study Roadmap',
         subtitle: 'Coaching, exam date & daily time',
         onTap: () => context.push('/roadmap/setup'),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 18),
       _SectionHeader('Support'),
       // Everyone can reach support; Pro gets the priority flag + badge (§3a).
       _TapItem(
         icon: LucideIcons.lifeBuoy,
+        accent: AppColors.chemistry,
         label: 'Contact support',
         subtitle: isPro
             ? 'Pro members are answered first'
@@ -161,6 +165,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (isPro)
         _TapItem(
           icon: LucideIcons.messageSquarePlus,
+          accent: AppColors.biology,
           label: 'Feature voting',
           subtitle: 'Vote on what we build next',
           onTap: () => context.push('/feature-voting'),
@@ -168,21 +173,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (isPro)
         _ToggleItem(
           icon: LucideIcons.flaskConical,
+          accent: AppColors.warning,
           label: 'Early access',
           subtitle: 'Try experimental features before everyone else',
           value: user?.earlyAccess ?? false,
           onChanged: _setEarlyAccess,
         ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 18),
       _SectionHeader('General'),
       _TapItem(
         icon: LucideIcons.globe,
+        accent: AppColors.chemistry,
         label: 'Language',
         value: _language,
         onTap: () => _showLanguageDialog(),
       ),
       _TapItem(
         icon: LucideIcons.shield,
+        accent: AppColors.primary,
         label: 'Data & Privacy',
         onTap: () => _showInfoDialog(
           'Data & Privacy',
@@ -195,6 +203,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       _TapItem(
         icon: LucideIcons.fileText,
+        accent: AppColors.textMedium,
         label: 'Terms of Service',
         onTap: () => _showInfoDialog(
           'Terms of Service',
@@ -205,15 +214,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           'Full terms at axiostudy.com/terms',
         ),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: 18),
       _SectionHeader('Account'),
       _TapItem(
         icon: LucideIcons.key,
+        accent: AppColors.physics,
         label: 'Change Password',
         onTap: () => _showChangePasswordDialog(),
       ),
       _TapItem(
         icon: LucideIcons.trash2,
+        accent: AppColors.error,
         label: 'Delete Account',
         textColor: AppColors.error,
         onTap: () => _showDeleteAccountDialog(),
@@ -408,48 +419,151 @@ class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.title);
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
+    padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
     child: Text(
-      title,
-      style: AppTypography.heading3.copyWith(color: AppColors.textLight),
+      title.toUpperCase(),
+      style: AppTypography.labelSmall.copyWith(
+        color: AppColors.textLight,
+        letterSpacing: 0.8,
+      ),
     ),
   );
 }
 
+/// Rounded icon tile shown at the leading edge of every settings row. The
+/// tint gives each row a clear accent without overwhelming the layout.
+class _IconTile extends StatelessWidget {
+  final IconData icon;
+  final Color accent;
+  const _IconTile({required this.icon, required this.accent});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 38,
+    height: 38,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: accent.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(11),
+    ),
+    child: Icon(icon, size: 19, color: accent),
+  );
+}
+
+/// Shared row chrome: rounded card, accent icon tile, a bold title and a
+/// noticeably lighter subtitle. [trailing] holds a switch, chevron or value.
+class _SettingCard extends StatelessWidget {
+  final IconData icon;
+  final Color accent;
+  final String label;
+  final String? subtitle;
+  final Color? labelColor;
+  final Widget trailing;
+  final VoidCallback? onTap;
+  final bool enabled;
+  const _SettingCard({
+    required this.icon,
+    required this.accent,
+    required this.label,
+    this.subtitle,
+    this.labelColor,
+    required this.trailing,
+    this.onTap,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Opacity(
+            opacity: enabled ? 1 : 0.45,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              child: Row(
+                children: [
+                  _IconTile(icon: icon, accent: accent),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: AppTypography.bodyLarge.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: labelColor ?? AppColors.textDark,
+                          ),
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle!,
+                            style: AppTypography.caption.copyWith(
+                              fontWeight: FontWeight.w400,
+                              color: AppColors.textLight,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  trailing,
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ToggleItem extends StatelessWidget {
   final IconData icon;
+  final Color accent;
   final String label;
   final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
   const _ToggleItem({
     required this.icon,
+    required this.accent,
     required this.label,
     this.subtitle,
     required this.value,
     required this.onChanged,
   });
+
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 4),
-    decoration: BoxDecoration(
-      color: AppColors.cardBackground,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: SwitchListTile(
-      secondary: Icon(icon, size: 20, color: AppColors.textMedium),
-      title: Text(label, style: AppTypography.bodyLarge),
-      subtitle: subtitle != null ? Text(subtitle!, style: AppTypography.caption) : null,
+  Widget build(BuildContext context) => _SettingCard(
+    icon: icon,
+    accent: accent,
+    label: label,
+    subtitle: subtitle,
+    onTap: () => onChanged(!value),
+    trailing: Switch(
       value: value,
       onChanged: onChanged,
-      activeThumbColor: AppColors.primary,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      activeThumbColor: AppColors.white,
+      activeTrackColor: AppColors.primary,
     ),
   );
 }
 
 class _TapItem extends StatelessWidget {
   final IconData icon;
+  final Color accent;
   final String label;
   final String? subtitle;
   final String? value;
@@ -458,6 +572,7 @@ class _TapItem extends StatelessWidget {
   final VoidCallback? onTap;
   const _TapItem({
     required this.icon,
+    required this.accent,
     required this.label,
     this.subtitle,
     this.value,
@@ -477,7 +592,7 @@ class _TapItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: AppColors.primarySurface,
-              borderRadius: BorderRadius.circular(7),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               badge!,
@@ -487,31 +602,39 @@ class _TapItem extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          chevron,
+        ],
+      );
+    }
+    if (value != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value!,
+            style: AppTypography.bodyMedium.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textMedium,
+            ),
+          ),
           const SizedBox(width: 6),
           chevron,
         ],
       );
     }
-    if (value != null) return Text(value!, style: AppTypography.bodyMedium);
     return chevron;
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 4),
-    decoration: BoxDecoration(
-      color: AppColors.cardBackground,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: ListTile(
-      leading: Icon(icon, size: 20, color: textColor ?? AppColors.textMedium),
-      title: Text(label, style: AppTypography.bodyLarge.copyWith(color: textColor)),
-      subtitle: subtitle != null
-          ? Text(subtitle!, style: AppTypography.caption)
-          : null,
-      trailing: _trailing(),
-      onTap: onTap,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ),
+  Widget build(BuildContext context) => _SettingCard(
+    icon: icon,
+    accent: accent,
+    label: label,
+    subtitle: subtitle,
+    labelColor: textColor,
+    enabled: onTap != null,
+    onTap: onTap,
+    trailing: _trailing(),
   );
 }

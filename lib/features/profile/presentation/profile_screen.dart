@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/billing/revenuecat.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/animations.dart';
 import '../../../core/widgets/gradient_background.dart';
 import '../../../shared/models/enums.dart';
@@ -22,11 +23,11 @@ class ProfileScreen extends ConsumerWidget {
     final userAsync = ref.watch(currentUserProvider);
     final user = userAsync.valueOrNull;
     if (user == null) {
-      return const GradientBackground(
-        child: Center(child: CircularProgressIndicator()),
+      return _Shell(
+        child: const Center(child: CircularProgressIndicator()),
       );
     }
-    return GradientBackground(
+    return _Shell(
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
@@ -399,6 +400,50 @@ class _EditNameDialogState extends ConsumerState<_EditNameDialog> {
               : const Text('Save'),
         ),
       ],
+    );
+  }
+}
+
+/// Wraps the profile content so it fills the screen on phones but docks as a
+/// slim, tap-to-dismiss side panel on tablets (the route slides it in from the
+/// left, so a full-width sheet would otherwise look out of place).
+class _Shell extends StatelessWidget {
+  final Widget child;
+  const _Shell({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Responsive.isTablet(context)) {
+      return GradientBackground(child: child);
+    }
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 420,
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 32,
+                  offset: const Offset(6, 0),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => context.pop(),
+              child: ColoredBox(color: Colors.black.withValues(alpha: 0.32)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

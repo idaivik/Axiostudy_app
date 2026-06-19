@@ -111,7 +111,7 @@ class _ReadinessBannerState extends ConsumerState<ReadinessBanner>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'JEE Readiness Score',
+                            '${user?.examType?.label ?? 'JEE'} Readiness Score',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.95),
                               fontSize: 14,
