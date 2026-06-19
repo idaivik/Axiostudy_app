@@ -220,6 +220,15 @@ class _DueItemCardState extends ConsumerState<_DueItemCard> {
     context.push('/subjects/${item.subjectId}?chapter=${item.chapterId}');
   }
 
+  void _openNotes() {
+    final item = widget.item;
+    context.push(Uri(path: '/notes/${item.topicId}', queryParameters: {
+      'name': item.displayName,
+      if (item.chapterId.isNotEmpty) 'chapter': item.chapterId,
+      if (item.subjectId.isNotEmpty) 'subject': item.subjectId,
+    }).toString());
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -252,6 +261,15 @@ class _DueItemCardState extends ConsumerState<_DueItemCard> {
                 const SizedBox(width: 6),
                 _Pill(label: 'New', color: AppColors.primary),
               ],
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Study notes',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: Icon(LucideIcons.bookOpen, size: 18, color: AppColors.primary),
+                onPressed: _busy ? null : _openNotes,
+              ),
             ],
           ),
           const SizedBox(height: 4),

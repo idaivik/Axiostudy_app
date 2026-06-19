@@ -27,6 +27,7 @@ import '../../features/practice/data/practice_repository.dart';
 import '../../features/roadmap/presentation/roadmap_screen.dart';
 import '../../features/roadmap/presentation/roadmap_setup_screen.dart';
 import '../../features/revision/presentation/revision_plan_screen.dart';
+import '../../features/notes/presentation/topic_notes_screen.dart';
 import '../../features/feedback/presentation/feature_voting_screen.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/gradient_background.dart';
@@ -200,6 +201,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/revision',
         builder: (context, state) => const RevisionPlanScreen(),
+      ),
+      // AI study notes for one topic (Bucket 3A §2) — Pro perk, metered ai_note.
+      // The screen gates to the upsell for Basic. topic_id is the path segment;
+      // name/chapter/subject ride as query params (used as generation context).
+      GoRoute(
+        path: '/notes/:topicId',
+        builder: (context, state) => TopicNotesScreen(
+          topicId: state.pathParameters['topicId']!,
+          topicName: state.uri.queryParameters['name'],
+          chapterId: state.uri.queryParameters['chapter'],
+          subjectId: state.uri.queryParameters['subject'],
+        ),
       ),
       // Feature-voting board (Bucket 2 §3b) — Pro perk, gated at the Settings
       // entry point (FeatureGate(prioritySupport)); lives outside the shell.

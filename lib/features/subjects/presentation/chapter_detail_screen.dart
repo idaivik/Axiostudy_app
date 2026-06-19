@@ -286,6 +286,22 @@ class _ChapterSheetState extends ConsumerState<_ChapterSheet> {
                                   ),
                                   Text('${topic.availableQuestions}q',
                                       style: AppTypography.caption),
+                                  IconButton(
+                                    tooltip: 'AI study notes',
+                                    visualDensity: VisualDensity.compact,
+                                    icon: Icon(LucideIcons.bookOpen,
+                                        size: 18, color: AppColors.primary),
+                                    onPressed: () => context.push(
+                                      Uri(
+                                        path: '/notes/${topic.id}',
+                                        queryParameters: {
+                                          'name': topic.name,
+                                          'chapter': topic.chapterId,
+                                          'subject': subject.id,
+                                        },
+                                      ).toString(),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ))
