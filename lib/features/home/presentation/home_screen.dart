@@ -12,6 +12,7 @@ import '../../analytics/data/analytics_providers.dart';
 import 'widgets/diagnostic_prompt_card.dart';
 import 'widgets/notifications_sheet.dart';
 import 'widgets/readiness_banner.dart';
+import 'widgets/revision_plan_home_card.dart';
 import 'widgets/roadmap_home_card.dart';
 import 'widgets/todays_plan_card.dart';
 
@@ -224,6 +225,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     delay: Duration(milliseconds: 240),
                     child: RoadmapHomeCard(),
                   ),
+                  // Self-gates: only renders for Pro users with a topic due.
+                  const RevisionPlanHomeCard(),
                   const AnimatedEntrance(
                     delay: Duration(milliseconds: 320),
                     child: TodaysPlanCard(),

@@ -26,6 +26,7 @@ import '../../features/practice/data/practice_providers.dart';
 import '../../features/practice/data/practice_repository.dart';
 import '../../features/roadmap/presentation/roadmap_screen.dart';
 import '../../features/roadmap/presentation/roadmap_setup_screen.dart';
+import '../../features/revision/presentation/revision_plan_screen.dart';
 import '../../features/feedback/presentation/feature_voting_screen.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/gradient_background.dart';
@@ -193,6 +194,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/roadmap/setup',
         builder: (context, state) => const RoadmapSetupScreen(),
+      ),
+      // Spaced-repetition revision plan (Bucket 3A §1) — Pro perk; the screen
+      // itself gates to the upsell for Basic. Lives outside the shell.
+      GoRoute(
+        path: '/revision',
+        builder: (context, state) => const RevisionPlanScreen(),
       ),
       // Feature-voting board (Bucket 2 §3b) — Pro perk, gated at the Settings
       // entry point (FeatureGate(prioritySupport)); lives outside the shell.
