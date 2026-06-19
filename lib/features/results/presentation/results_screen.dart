@@ -25,6 +25,7 @@ import 'widgets/time_analysis_card.dart';
 import 'widgets/accuracy_metrics_card.dart';
 import 'widgets/mistakes_review_card.dart';
 import 'widgets/formulas_to_learn_card.dart';
+import 'widgets/time_tips_card.dart';
 
 // Sequence step 16-18: Display weakness analysis → Show strength areas → Recommend practice tests
 class ResultsScreen extends ConsumerStatefulWidget {
@@ -232,6 +233,25 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
             child: FeatureGate(
               feature: Feature.aiAnalysisNarrative,
               child: (_) => _AiNarrativeCard(attemptId: widget.attemptId),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Bucket 2 Feature 1 — Pacing coach (Pro, deterministic, no meter).
+          // Strictly about HOW time was spent — complements the narrative's
+          // "what to study". Basic sees the default upgrade upsell; a Pro result
+          // with nothing useful to say renders nothing (the card hides itself).
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: FeatureGate(
+              feature: Feature.aiTimeTips,
+              // Feature-specific upsell so it doesn't duplicate the narrative's
+              // generic locked card stacked just above it.
+              locked: (_) => const AiLockedCard(
+                status: MeterStatus.noEntitlement,
+                featureTitle: 'pacing coach',
+              ),
+              child: (_) => TimeTipsCard(attemptId: widget.attemptId),
             ),
           ),
           const SizedBox(height: 12),

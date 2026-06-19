@@ -152,6 +152,15 @@ class AuthRepository {
         .eq('id', userId);
   }
 
+  /// Opt the user in/out of early-access (Bucket 2 §3c). Writes only the one
+  /// column so the rest of the profile is untouched.
+  Future<void> setEarlyAccess(String userId, bool enabled) async {
+    await _client
+        .from('profiles')
+        .update({'early_access': enabled})
+        .eq('id', userId);
+  }
+
   /// Persist the entitlement returned by a store purchase / restore. Writes only
   /// the subscription columns so other profile fields are left untouched. The
   /// RevenueCat webhook is the long-term source of truth; this is the optimistic

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/notifications/fcm_service.dart';
 import '../../../core/notifications/notification_prefs.dart';
 import '../../../core/notifications/notification_prefs_providers.dart';
@@ -9,6 +10,8 @@ import '../../../core/notifications/notification_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/animations.dart';
+import '../../auth/data/auth_providers.dart';
+import '../../subscription/domain/entitlements.dart';
 
 /// Settings screen — the SINGLE place for all app settings.
 /// Rendered as a primary navigation tab inside the app shell.
@@ -24,6 +27,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // Feature 1 — reminder prefs (persisted to notification_prefs).
   NotificationPrefs _prefs = NotificationPrefs.defaults;
   String _language = 'English';
+  bool _earlyAccessBusy = false;
 
   @override
   void initState() {
@@ -69,8 +73,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await _savePrefs(_prefs.copyWith(quietStart: start, quietEnd: end));
   }
 
+  /// Bucket 2 §3a — everyone can contact support; Pro tickets are flagged
+  /// priority in the subject so they're triaged first (no hard SLA promised).
+  Future<void> _contactSupport({
+    required bool isPro,
+    required String planLabel,
+  }) async {
+    final subject = isPro ? '[PRIORITY] AxioStudy support' : 'AxioStudy support';
+    final body = 'Plan: $planLabel\n\n'
+        '(Describe your issue here — the more detail, the faster we can help.)\n\n';
+    final uri = Uri.parse(
+      'mailto:support@axiostudy.com'
+      '?subject=${Uri.encodeComponent(subject)}'
+      '&body=${Uri.encodeComponent(body)}',
+    );
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      _showSnack(context, 'Could not open your mail app — email support@axiostudy.com.');
+    }
+  }
+
+  /// Bucket 2 §3c — flip the early-access opt-in on the profile.
+  Future<void> _setEarlyAccess(bool enabled) async {
+    if (_earlyAccessBusy) return;
+    final userId = ref.read(currentUserProvider).valueOrNull?.id;
+    if (userId == null) return;
+    setState(() => _earlyAccessBusy = true);
+    try {
+      await ref.read(authRepositoryProvider).setEarlyAccess(userId, enabled);
+      ref.invalidate(currentUserProvider);
+      if (mounted) {
+        _showSnack(context, enabled ? 'Early access on' : 'Early access off');
+      }
+    } catch (_) {
+      if (mounted) _showSnack(context, "Couldn't update early access.");
+    } finally {
+      if (mounted) setState(() => _earlyAccessBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider).valueOrNull;
+    // prioritySupport bundles priority support + feature voting + early access.
+    final isPro = user?.can(Feature.prioritySupport) ?? false;
+
     final items = <Widget>[
       _SectionHeader('Notifications'),
       _ToggleItem(
@@ -95,6 +142,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         subtitle: 'Coaching, exam date & daily time',
         onTap: () => context.push('/roadmap/setup'),
       ),
+      const SizedBox(height: 16),
+      _SectionHeader('Support'),
+      // Everyone can reach support; Pro gets the priority flag + badge (§3a).
+      _TapItem(
+        icon: LucideIcons.lifeBuoy,
+        label: 'Contact support',
+        subtitle: isPro
+            ? 'Pro members are answered first'
+            : 'Reach our team by email',
+        badge: isPro ? 'Priority' : null,
+        onTap: () => _contactSupport(
+          isPro: isPro,
+          planLabel: user?.subscriptionTier.label ?? '—',
+        ),
+      ),
+      // Feature voting + early access are Pro perks — hidden for everyone else.
+      if (isPro)
+        _TapItem(
+          icon: LucideIcons.messageSquarePlus,
+          label: 'Feature voting',
+          subtitle: 'Vote on what we build next',
+          onTap: () => context.push('/feature-voting'),
+        ),
+      if (isPro)
+        _ToggleItem(
+          icon: LucideIcons.flaskConical,
+          label: 'Early access',
+          subtitle: 'Try experimental features before everyone else',
+          value: user?.earlyAccess ?? false,
+          onChanged: _setEarlyAccess,
+        ),
       const SizedBox(height: 16),
       _SectionHeader('General'),
       _TapItem(
@@ -375,6 +453,7 @@ class _TapItem extends StatelessWidget {
   final String label;
   final String? subtitle;
   final String? value;
+  final String? badge;
   final Color? textColor;
   final VoidCallback? onTap;
   const _TapItem({
@@ -382,9 +461,41 @@ class _TapItem extends StatelessWidget {
     required this.label,
     this.subtitle,
     this.value,
+    this.badge,
     this.textColor,
     this.onTap,
   });
+
+  Widget _trailing() {
+    final chevron =
+        Icon(LucideIcons.chevronRight, color: AppColors.textLight, size: 18);
+    if (badge != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Text(
+              badge!,
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          chevron,
+        ],
+      );
+    }
+    if (value != null) return Text(value!, style: AppTypography.bodyMedium);
+    return chevron;
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(bottom: 4),
@@ -398,9 +509,7 @@ class _TapItem extends StatelessWidget {
       subtitle: subtitle != null
           ? Text(subtitle!, style: AppTypography.caption)
           : null,
-      trailing: value != null
-          ? Text(value!, style: AppTypography.bodyMedium)
-          : Icon(LucideIcons.chevronRight, color: AppColors.textLight, size: 18),
+      trailing: _trailing(),
       onTap: onTap,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),

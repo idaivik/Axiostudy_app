@@ -28,6 +28,9 @@ class UserModel {
   final int currentStreak;
   final int topicsMastered;
 
+  /// Opt-in to experimental / early-access features (Pro perk — Bucket 2 §3c).
+  final bool earlyAccess;
+
   const UserModel({
     required this.id,
     required this.email,
@@ -48,6 +51,7 @@ class UserModel {
     this.averageScore = 0.0,
     this.currentStreak = 0,
     this.topicsMastered = 0,
+    this.earlyAccess = false,
   });
 
   /// Whether the user still has app access (inside trial or actively billed).
@@ -94,6 +98,7 @@ class UserModel {
       averageScore: (json['average_score'] as num?)?.toDouble() ?? 0.0,
       currentStreak: json['current_streak'] as int? ?? 0,
       topicsMastered: json['topics_mastered'] as int? ?? 0,
+      earlyAccess: json['early_access'] as bool? ?? false,
     );
   }
 
@@ -118,6 +123,7 @@ class UserModel {
       'average_score': averageScore,
       'current_streak': currentStreak,
       'topics_mastered': topicsMastered,
+      'early_access': earlyAccess,
     };
   }
 
@@ -155,6 +161,7 @@ class UserModel {
     double? averageScore,
     int? currentStreak,
     int? topicsMastered,
+    bool? earlyAccess,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -176,6 +183,7 @@ class UserModel {
       averageScore: averageScore ?? this.averageScore,
       currentStreak: currentStreak ?? this.currentStreak,
       topicsMastered: topicsMastered ?? this.topicsMastered,
+      earlyAccess: earlyAccess ?? this.earlyAccess,
     );
   }
 }

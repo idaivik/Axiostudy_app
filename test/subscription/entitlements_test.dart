@@ -144,6 +144,22 @@ void main() {
     });
   });
 
+  group('Bucket 2 tier surfaces (BILLING_BUCKET2_BUILD_PROMPT.md §5)', () {
+    final basic = _user(tier: SubscriptionTier.basic);
+    final pro = _user(tier: SubscriptionTier.pro);
+
+    test('Pro unlocks AI time tips + the priority-support bundle', () {
+      // prioritySupport bundles priority support + feature voting + early access.
+      expect(pro.can(Feature.aiTimeTips), isTrue);
+      expect(pro.can(Feature.prioritySupport), isTrue);
+    });
+
+    test('Basic is locked out of both Bucket 2 features', () {
+      expect(basic.can(Feature.aiTimeTips), isFalse);
+      expect(basic.can(Feature.prioritySupport), isFalse);
+    });
+  });
+
   group('Pro→Basic downgrade (§10)', () {
     test('downgrade drops Pro-only capabilities but keeps the floor', () {
       final pro = _user(tier: SubscriptionTier.pro);
