@@ -260,9 +260,23 @@ String? _onboardingGuard(Ref ref, GoRouterState state) {
 
   // ── Profile loaded — enforce onboarding funnel ───────────────────────────────
   final step = onboardingStepFor(user);
+  // A brand-new account walking the pre-payment funnel (exam → paywall) may
+  // navigate BACK to an earlier step so the back gesture works — but never skip
+  // ahead. This deliberately excludes a *lapsed* user bounced to the re-paywall
+  // (already onboarded, access expired): they must not be able to walk back and
+  // change their exam after a prior payment, so they're pinned below.
+  final inNewAccountFunnel = step == OnboardingStep.exam ||
+      (step == OnboardingStep.paywall && !user.onboardingCompleted);
+  if (inNewAccountFunnel) {
+    final stepIdx = kFunnelOrder.indexOf(step.route);
+    final locIdx = kFunnelOrder.indexOf(loc);
+    // On a funnel screen at or before the current step → allow. Anywhere else
+    // (a later/unreached funnel screen, splash, or the app) → snap to the step.
+    if (locIdx != -1 && locIdx <= stepIdx) return null;
+    return step.route;
+  }
   if (step != OnboardingStep.done) {
-    // Allow the correct funnel screen; redirect to it from everywhere else
-    // (including /splash, so the splash is never a dead-end).
+    // Lapsed re-paywall or the profiling gate: pin exactly to the required step.
     return loc == step.route ? null : step.route;
   }
 

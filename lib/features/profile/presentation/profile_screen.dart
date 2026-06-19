@@ -94,7 +94,36 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Text(user.name, style: AppTypography.heading2),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            user.name,
+                            style: AppTypography.heading2,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        PressableScale(
+                          scale: 0.85,
+                          onTap: () =>
+                              _showEditNameDialog(context, user.id, user.name),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceLight,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Icon(
+                              LucideIcons.pencil,
+                              size: 16,
+                              color: AppColors.textMedium,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                     Text(user.email, style: AppTypography.bodyMedium),
                     const SizedBox(height: 6),
                     Container(
@@ -237,6 +266,18 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
+  void _showEditNameDialog(
+    BuildContext context,
+    String userId,
+    String currentName,
+  ) {
+    showDialog(
+      context: context,
+      builder: (_) =>
+          _EditNameDialog(userId: userId, currentName: currentName),
+    );
+  }
+
   void _showInfoDialog(BuildContext context, String title, String message) {
     showDialog(
       context: context,
@@ -251,6 +292,113 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Dialog for editing the user's display name. Persists only the name column
+/// and refreshes [currentUserProvider] so the profile updates in place.
+class _EditNameDialog extends ConsumerStatefulWidget {
+  final String userId;
+  final String currentName;
+
+  const _EditNameDialog({required this.userId, required this.currentName});
+
+  @override
+  ConsumerState<_EditNameDialog> createState() => _EditNameDialogState();
+}
+
+class _EditNameDialogState extends ConsumerState<_EditNameDialog> {
+  late final TextEditingController _controller;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _controller.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Name can\'t be empty.');
+      return;
+    }
+    if (name == widget.currentName.trim()) {
+      Navigator.pop(context);
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).updateName(widget.userId, name);
+      ref.invalidate(currentUserProvider);
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = 'Couldn\'t update your name. Please try again.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit name'),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            enabled: !_saving,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _save(),
+            decoration: InputDecoration(
+              hintText: 'Your name',
+              errorText: _error,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Save'),
+        ),
+      ],
     );
   }
 }

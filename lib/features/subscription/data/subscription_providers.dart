@@ -58,10 +58,19 @@ class SubscriptionController {
         'Check your connection and tap "Restore purchases".',
       );
     }
-    // NOTE: Do NOT invalidate currentUserProvider here — doing so mid-flow puts
-    // the provider into a loading state before navigation commits, which makes
-    // the router guard block on isLoading and strands the paywall. The paywall
-    // invalidates AFTER it navigates (see PaywallScreen).
+    // Refresh the cached profile to the just-entitled row BEFORE returning, so
+    // the screen's follow-up navigation (context.go) is evaluated by the router
+    // guard against the NEW entitlement — not the stale pre-purchase profile,
+    // which reports `hasActiveAccess == false` and bounces the user straight
+    // back to the paywall.
+    //
+    // We *await* the refetch here rather than firing a post-frame invalidate
+    // from the review screen: that screen is disposed by the navigation that
+    // follows success, so its `if (mounted)` invalidate was being skipped —
+    // leaving currentUserProvider stale and the app pinned on the paywall until
+    // a full restart re-fetched the profile from scratch. Awaiting to `data`
+    // (not loading) before we return also avoids stranding the guard mid-flow.
+    await _refreshProfile();
     return result;
   }
 
@@ -74,14 +83,44 @@ class SubscriptionController {
     }
 
     final result = await _ref.read(paymentServiceProvider).restore(user: user);
-    if (result.success) {
+    if (!result.success) return result;
+
+    // Restore succeeded at the store. The optimistic profile write can still
+    // fail (network/RLS/timeout) — don't let that exception unwind into the UI
+    // as a generic "Could not restore", which would mask a restore that actually
+    // worked. The RevenueCat webhook reconciles the entitlement server-side
+    // regardless.
+    try {
       await _persist(
         user.id,
         result,
         fallbackTier: result.tier ?? SubscriptionTier.pro,
       );
+    } catch (e, st) {
+      debugPrint('[Subscription] persist after restore failed: $e\n$st');
+      return PurchaseResult.failure(
+        'We restored your subscription but couldn\'t finish syncing your '
+        'account. Check your connection and try again.',
+      );
     }
+    await _refreshProfile();
     return result;
+  }
+
+  /// Invalidate + re-read the profile so the router guard re-evaluates against
+  /// the freshly-entitled row. Awaited (not fire-and-forget) so the value has
+  /// settled to `data` before callers navigate; capped so a hung fetch can't
+  /// hang the success path — the optimistic write is already persisted, and the
+  /// next guard pass / restart picks it up. Never throws.
+  Future<void> _refreshProfile() async {
+    try {
+      _ref.invalidate(currentUserProvider);
+      await _ref
+          .read(currentUserProvider.future)
+          .timeout(const Duration(seconds: 12));
+    } catch (e, st) {
+      debugPrint('[Subscription] profile refresh failed: $e\n$st');
+    }
   }
 
   Future<void> _persist(

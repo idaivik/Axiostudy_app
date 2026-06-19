@@ -123,6 +123,14 @@ class RevenueCatPaymentService implements PaymentService {
       if (code == PurchasesErrorCode.purchaseCancelledError) {
         return PurchaseResult.cancelled();
       }
+      if (code == PurchasesErrorCode.productAlreadyPurchasedError) {
+        // The store account already owns this subscription — a sandbox re-test
+        // loop, or a desynced session that never registered the first purchase.
+        // Don't dead-end with "you already own this": recover the entitlement by
+        // restoring and applying whatever is currently active.
+        final recovered = await _recoverActiveEntitlement(plan);
+        if (recovered != null) return recovered;
+      }
       return PurchaseResult.failure(_messageFor(code, e));
     } catch (e, st) {
       debugPrint('[RC] purchase unexpected error: $e\n$st');
@@ -135,19 +143,43 @@ class RevenueCatPaymentService implements PaymentService {
     try {
       await RevenueCat.identify(user.id);
       final info = await Purchases.restorePurchases();
+      debugPrint('[RC] restore → active entitlements='
+          '${info.entitlements.active.keys.toList()}');
       final restored = _fromCustomerInfo(info);
       if (!restored.success) {
         return PurchaseResult.failure(
-          'No active subscription was found on this store account.',
+          'No active subscription was found on this store account. If you just '
+          'subscribed, give it a moment and try again.',
         );
       }
       return restored;
     } on PlatformException catch (e) {
-      return PurchaseResult.failure(
-        _messageFor(PurchasesErrorHelper.getErrorCode(e), e),
-      );
-    } catch (e) {
+      // Log the *actual* RevenueCat error code — the UI shows a generic message,
+      // so without this the real cause (network / store problem / already-synced)
+      // is invisible during sandbox testing.
+      final code = PurchasesErrorHelper.getErrorCode(e);
+      debugPrint('[RC] restore PlatformException: ${e.code} ${e.message} → $code');
+      return PurchaseResult.failure(_messageFor(code, e));
+    } catch (e, st) {
+      debugPrint('[RC] restore unexpected error: $e\n$st');
       return PurchaseResult.failure('Restore failed: $e');
+    }
+  }
+
+  /// Pull the current entitlement off the store account and map it to a result,
+  /// or null when nothing active is found. Used to recover from a
+  /// `productAlreadyPurchasedError` (the account owns the subscription but this
+  /// session never registered it) instead of stranding the user on the paywall.
+  Future<PurchaseResult?> _recoverActiveEntitlement(TrialPlan plan) async {
+    try {
+      final info = await Purchases.restorePurchases();
+      debugPrint('[RC] recover-after-alreadyOwned → active='
+          '${info.entitlements.active.keys.toList()}');
+      final recovered = _fromCustomerInfo(info, preferredTier: plan.tier);
+      return recovered.success ? recovered : null;
+    } catch (e) {
+      debugPrint('[RC] recover-after-alreadyOwned failed: $e');
+      return null;
     }
   }
 

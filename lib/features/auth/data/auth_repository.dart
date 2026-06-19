@@ -152,6 +152,15 @@ class AuthRepository {
         .eq('id', userId);
   }
 
+  /// Update the user's display name. Writes only the one column so the rest of
+  /// the profile is untouched.
+  Future<void> updateName(String userId, String name) async {
+    await _client
+        .from('profiles')
+        .update({'name': name.trim()})
+        .eq('id', userId);
+  }
+
   /// Opt the user in/out of early-access (Bucket 2 §3c). Writes only the one
   /// column so the rest of the profile is untouched.
   Future<void> setEarlyAccess(String userId, bool enabled) async {

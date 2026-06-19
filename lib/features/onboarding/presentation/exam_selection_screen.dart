@@ -47,57 +47,117 @@ class _ExamSelectionScreenState extends ConsumerState<ExamSelectionScreen> {
     }
   }
 
+  /// Backing out of the first funnel screen abandons onboarding: sign the user
+  /// out so the router returns them to the login page (one more back closes the
+  /// app). Without the sign-out the onboarding guard would just bounce them
+  /// straight back here.
+  Future<void> _backToLogin() async {
+    try {
+      await ref.read(authRepositoryProvider).signOut();
+    } catch (_) {
+      // Even if the sign-out call fails, fall through to /login.
+    }
+    if (mounted) context.go('/login');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 32),
-              Text('What are you preparing for?',
-                  style: AppTypography.heading1),
-              const SizedBox(height: 8),
-              Text(
-                'We\'ll tailor your subjects, tests, and AI coaching to your target exam.',
-                style: AppTypography.bodyMedium,
-              ),
-              const SizedBox(height: 28),
-              _ExamCard(
-                exam: ExamType.jee,
-                icon: LucideIcons.atom,
-                gradient: AppColors.physicsGradient,
-                selected: _selected == ExamType.jee,
-                onTap: () => setState(() => _selected = ExamType.jee),
-              ),
-              const SizedBox(height: 16),
-              _ExamCard(
-                exam: ExamType.neet,
-                icon: LucideIcons.stethoscope,
-                gradient: AppColors.biologyGradient,
-                selected: _selected == ExamType.neet,
-                onTap: () => setState(() => _selected = ExamType.neet),
-              ),
-              const Spacer(),
-              if (_error != null) ...[
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || _isSaving) return;
+        _backToLogin();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 32),
+                Text('What are you preparing for?',
+                    style: AppTypography.heading1),
+                const SizedBox(height: 8),
                 Text(
-                  _error!,
-                  style: AppTypography.bodyMedium.copyWith(color: AppColors.wrong),
+                  'We\'ll tailor your subjects, tests, and AI coaching to your target exam.',
+                  style: AppTypography.bodyMedium,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 28),
+                _ExamCard(
+                  exam: ExamType.jee,
+                  icon: LucideIcons.atom,
+                  gradient: AppColors.physicsGradient,
+                  selected: _selected == ExamType.jee,
+                  onTap: () => setState(() => _selected = ExamType.jee),
+                ),
+                const SizedBox(height: 16),
+                _ExamCard(
+                  exam: ExamType.neet,
+                  icon: LucideIcons.stethoscope,
+                  gradient: AppColors.biologyGradient,
+                  selected: _selected == ExamType.neet,
+                  onTap: () => setState(() => _selected = ExamType.neet),
+                ),
+                const Spacer(),
+                // Surface the irreversibility of the choice as soon as one is
+                // picked — the exam is locked once a subscription begins.
+                if (_selected != null) ...[
+                  _ExamLockNotice(exam: _selected!),
+                  const SizedBox(height: 16),
+                ],
+                if (_error != null) ...[
+                  Text(
+                    _error!,
+                    style: AppTypography.bodyMedium
+                        .copyWith(color: AppColors.wrong),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                AxioButton(
+                  label: 'Continue',
+                  isLoading: _isSaving,
+                  onPressed: _selected == null ? null : _continue,
+                ),
+                const SizedBox(height: 28),
               ],
-              AxioButton(
-                label: 'Continue',
-                isLoading: _isSaving,
-                onPressed: _selected == null ? null : _continue,
-              ),
-              const SizedBox(height: 28),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Warning shown once an exam is selected: the target exam can't be changed
+/// after a subscription starts (it drives the whole question bank / roadmap).
+class _ExamLockNotice extends StatelessWidget {
+  final ExamType exam;
+  const _ExamLockNotice({required this.exam});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.warningLight,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(LucideIcons.lock, size: 18, color: AppColors.warning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'You can\'t change your exam once your subscription starts. '
+              'Make sure ${exam.label} is the one you\'re preparing for.',
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textDark),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -40,6 +40,16 @@ const Set<String> kOnboardingRoutes = {
   '/onboarding/profiling',
 };
 
+/// The funnel routes in forward order (exam → paywall → profiling). The router
+/// uses the ordering to permit BACKWARD navigation to an earlier *pre-payment*
+/// step (so the back gesture can walk paywall → exam) while still blocking any
+/// skip ahead to a step the user hasn't reached.
+const List<String> kFunnelOrder = [
+  '/onboarding/exam',
+  '/paywall',
+  '/onboarding/profiling',
+];
+
 /// Resolves the next gate from the profile.
 ///
 /// Brand-new accounts run the funnel in order: exam target → paywall/trial → AI
