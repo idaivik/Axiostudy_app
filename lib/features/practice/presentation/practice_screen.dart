@@ -394,6 +394,14 @@ class _TestsTab extends ConsumerWidget {
         .where((t) => t.id != 'adaptive_practice')
         .toList();
     final history = ref.watch(scoreHistoryProvider).valueOrNull ?? [];
+    // Split tests by whether the student has a finished attempt: not-yet-taken
+    // tests go to "Available", taken tests to "Completed".
+    final lastByTest =
+        ref.watch(lastAttemptByTestProvider).valueOrNull ?? const {};
+    final available =
+        tests.where((t) => !lastByTest.containsKey(t.id)).toList();
+    final completed =
+        tests.where((t) => lastByTest.containsKey(t.id)).toList();
 
     return RefreshIndicator(
       color: AppColors.primary,
@@ -402,6 +410,8 @@ class _TestsTab extends ConsumerWidget {
         ref.invalidate(topicPerformanceProvider);
         ref.invalidate(testsProvider);
         ref.invalidate(scoreHistoryProvider);
+        ref.invalidate(userAttemptsProvider);
+        ref.invalidate(lastAttemptByTestProvider);
         await ref.read(currentUserProvider.future);
       },
       child: CustomScrollView(
@@ -435,7 +445,7 @@ class _TestsTab extends ConsumerWidget {
             ),
           ),
         ),
-        // Available tests (real data from the `tests` table)
+        // Available tests — not yet attempted (real data from the `tests` table)
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -444,12 +454,16 @@ class _TestsTab extends ConsumerWidget {
         ),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: tests.isEmpty
-              ? const SliverToBoxAdapter(child: _EmptyHint('No tests available yet.'))
+          sliver: available.isEmpty
+              ? SliverToBoxAdapter(
+                  child: _EmptyHint(tests.isEmpty
+                      ? 'No tests available yet.'
+                      : 'You\'ve attempted every available test — nice work!'),
+                )
               : SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      final t = tests[index];
+                      final t = available[index];
                       return _TestCard(
                         title: t.name,
                         subtitle:
@@ -460,10 +474,37 @@ class _TestsTab extends ConsumerWidget {
                         onTap: () => context.push('/test/${t.id}'),
                       );
                     },
-                    childCount: tests.length,
+                    childCount: available.length,
                   ),
                 ),
         ),
+        // Completed tests — tap to see last-attempt detail + reattempt.
+        if (completed.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text('Completed Tests', style: AppTypography.heading2),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final t = completed[index];
+                  final attempt = lastByTest[t.id]!;
+                  return _CompletedTestCard(
+                    title: t.name,
+                    scorePercentage: attempt.scorePercentage,
+                    date: _fmtDate(attempt.endTime ?? attempt.startTime),
+                    onTap: () => context.push('/completed-test/${t.id}'),
+                  );
+                },
+                childCount: completed.length,
+              ),
+            ),
+          ),
+        ],
         // Past results (real data from score_history)
         SliverToBoxAdapter(
           child: Padding(
@@ -732,6 +773,78 @@ class _ResultCard extends StatelessWidget {
                   ],
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A mock test the student has already finished — shows the last score and
+/// opens the completed-test detail screen on tap.
+class _CompletedTestCard extends StatelessWidget {
+  final String title;
+  final double scorePercentage;
+  final String date;
+  final VoidCallback? onTap;
+
+  const _CompletedTestCard({
+    required this.title,
+    required this.scorePercentage,
+    required this.date,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = scorePercentage.round();
+    final scoreColor = pct >= 70
+        ? AppColors.success
+        : pct >= 40
+            ? AppColors.warning
+            : AppColors.error;
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: scoreColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(LucideIcons.checkCircle2, size: 20, color: scoreColor),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: AppTypography.bodyLarge
+                          .copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text('Last: $pct%  ·  $date', style: AppTypography.caption),
+                ],
+              ),
+            ),
+            const Icon(LucideIcons.chevronRight,
+                size: 18, color: AppColors.textLight),
           ],
         ),
       ),

@@ -251,6 +251,13 @@ class AnalyticsEngine {
   }
 
   /// Persist all computed analytics to Supabase.
+  ///
+  /// Each step is isolated in its own try/catch: the writes are independent, so
+  /// a failure in one (e.g. a transient error, or a single bad recommendation)
+  /// must NOT abort the others. Previously these ran as one unbroken `await`
+  /// chain, so an early failure (notably the topic_performance upsert) silently
+  /// skipped score history, streak, and profile stats — leaving the Analytics
+  /// page empty even though the attempt itself was saved.
   Future<void> _persistResults({
     required AttemptAnalyticsResult result,
     required TestAttempt attempt,
@@ -261,49 +268,67 @@ class AnalyticsEngine {
     required Map<String, SubjectBreakdown> subjectBreakdown,
   }) async {
     // 1. Save attempt analytics
-    await _repository.saveAttemptAnalytics(result);
+    await _step('attempt_analytics', () =>
+        _repository.saveAttemptAnalytics(result));
 
     // 2. Update user_answers with is_correct flag
-    await _repository.updateAnswerCorrectness(
-      attemptId: attempt.id,
-      gradedAnswers: gradedAnswers,
-    );
+    await _step('answer_correctness', () =>
+        _repository.updateAnswerCorrectness(
+          attemptId: attempt.id,
+          gradedAnswers: gradedAnswers,
+        ));
 
     // 3. Upsert topic performance
-    for (final perf in updatedPerformance.values) {
-      await _repository.upsertTopicPerformance(
-        userId: attempt.userId,
-        performance: perf,
-      );
-    }
+    await _step('topic_performance', () async {
+      for (final perf in updatedPerformance.values) {
+        await _repository.upsertTopicPerformance(
+          userId: attempt.userId,
+          performance: perf,
+        );
+      }
+    });
 
     // 4. Add score history entry
-    final subjectScores = subjectBreakdown.map(
-      (k, v) => MapEntry(k, v.accuracy * 100),
-    );
-    await _repository.addScoreHistoryEntry(
-      userId: attempt.userId,
-      entry: ScoreHistoryEntry(
-        attemptId: attempt.id,
-        testId: attempt.testId,
-        testName: testName,
-        scorePercentage: result.scorePercentage,
-        subjectScores: subjectScores,
-        completedAt: attempt.endTime ?? DateTime.now(),
-      ),
-    );
+    await _step('score_history', () {
+      final subjectScores = subjectBreakdown.map(
+        (k, v) => MapEntry(k, v.accuracy * 100),
+      );
+      return _repository.addScoreHistoryEntry(
+        userId: attempt.userId,
+        entry: ScoreHistoryEntry(
+          attemptId: attempt.id,
+          testId: attempt.testId,
+          testName: testName,
+          scorePercentage: result.scorePercentage,
+          subjectScores: subjectScores,
+          completedAt: attempt.endTime ?? DateTime.now(),
+        ),
+      );
+    });
 
     // 5. Update study streak
-    await _repository.updateStreak(attempt.userId);
+    await _step('study_streak', () => _repository.updateStreak(attempt.userId));
 
     // 6. Save recommendations (clear old, insert new)
-    await _repository.replaceRecommendations(
-      userId: attempt.userId,
-      recommendations: recommendations,
-    );
+    await _step('recommendations', () => _repository.replaceRecommendations(
+          userId: attempt.userId,
+          recommendations: recommendations,
+        ));
 
     // 7. Update profile aggregate stats
-    await _repository.updateProfileStats(attempt.userId);
+    await _step('profile_stats', () =>
+        _repository.updateProfileStats(attempt.userId));
+  }
+
+  /// Run a single persistence step, swallowing (but logging) its error so the
+  /// remaining steps still run.
+  Future<void> _step(String name, Future<void> Function() body) async {
+    try {
+      await body();
+    } catch (e) {
+      // ignore: avoid_print
+      print('Analytics persist step "$name" failed: $e');
+    }
   }
 
   static String _subjectName(String id) {

@@ -14,6 +14,7 @@ import '../../features/onboarding/presentation/profiling_screen.dart';
 import '../../features/subscription/presentation/paywall_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/test/presentation/test_screen.dart';
+import '../../features/test/presentation/completed_test_screen.dart';
 import '../../features/results/presentation/results_screen.dart';
 import '../../features/subjects/presentation/chapter_detail_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
@@ -150,6 +151,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/results/:attemptId',
         builder: (context, state) => ResultsScreen(
           attemptId: state.pathParameters['attemptId']!,
+        ),
+      ),
+      // Completed mock-test detail (last attempt stats + reattempt). Reached
+      // from the "Completed" section of the Mock Tests tab.
+      GoRoute(
+        path: '/completed-test/:testId',
+        builder: (context, state) => CompletedTestScreen(
+          testId: state.pathParameters['testId']!,
         ),
       ),
       GoRoute(

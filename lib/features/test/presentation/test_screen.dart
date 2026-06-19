@@ -56,6 +56,19 @@ class _TestScreenState extends ConsumerState<TestScreen> {
       // In-memory adaptive session takes precedence over a DB load.
       final test = widget.test ?? await repo.getTestWithQuestions(widget.testId);
 
+      // A test with no questions cannot be run — bail out gracefully instead of
+      // crashing on `test.questions[0]` (guards stale/empty seed tests).
+      if (test.questions.isEmpty) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('This test has no questions yet.')),
+          );
+          context.pop();
+        }
+        return;
+      }
+
       // The student is practising now — cancel any pending skip nudge.
       NotificationService.instance.cancelPracticeReminder();
 

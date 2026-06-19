@@ -11,10 +11,30 @@ class TestRepository {
 
   TestRepository(this._client);
 
-  /// Fetch all available tests (without questions).
-  Future<List<Test>> getTests() async {
+  /// Fetch available tests (without questions), ready for the Mock Tests list.
+  ///
+  /// - [examType] (`'jee'`/`'neet'`): keeps only tests for that exam plus any
+  ///   `'both'` test. Pass null (not yet onboarded) to get everything.
+  /// - Tests with **no linked questions** are dropped: an empty test cannot be
+  ///   run (the runner would have nothing to show) and is almost always stale
+  ///   seed data, e.g. the legacy `test_diag_001` duplicate. The dynamic
+  ///   `adaptive_practice` test also has no fixed questions, so it is excluded
+  ///   here too — it is launched from its own entry point, never this list.
+  Future<List<Test>> getTests({String? examType}) async {
     final data = await _client.from('tests').select().order('created_at');
-    return data.map((json) => Test.fromJson(json)).toList();
+
+    // One round-trip for the question counts, tallied client-side.
+    final links = await _client.from('test_questions').select('test_id');
+    final counts = <String, int>{};
+    for (final row in links) {
+      final id = row['test_id'] as String?;
+      if (id != null) counts[id] = (counts[id] ?? 0) + 1;
+    }
+
+    return data
+        .map((json) => Test.fromJson(json))
+        .where((t) => (counts[t.id] ?? 0) > 0 && t.matchesExam(examType))
+        .toList();
   }
 
   /// Fetch a single test with all its questions (joined via test_questions).

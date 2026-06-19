@@ -71,6 +71,11 @@ class Test {
   final List<String> subjectIds;
   final List<Question> questions;
 
+  /// Target exam this test belongs to: `'jee'`, `'neet'`, or `'both'`
+  /// (mirrors `tests.exam_type`). Drives the JEE/NEET separation in the
+  /// Mock Tests list — a `'both'` test is shown to every student.
+  final String examType;
+
   const Test({
     required this.id,
     required this.name,
@@ -79,7 +84,14 @@ class Test {
     required this.totalQuestions,
     required this.subjectIds,
     required this.questions,
+    this.examType = 'both',
   });
+
+  /// Whether this test should be shown to a student preparing for [userExam]
+  /// (whose `name` is `'jee'`/`'neet'`). A `'both'` test always matches; a null
+  /// exam (not yet onboarded) sees everything.
+  bool matchesExam(String? userExam) =>
+      userExam == null || examType == 'both' || examType == userExam;
 
   /// Create from Supabase `tests` row.
   /// Questions must be joined or provided separately.
@@ -93,6 +105,7 @@ class Test {
       subjectIds: json['subject_ids'] != null
           ? (json['subject_ids'] as List).map((e) => e.toString()).toList()
           : [],
+      examType: (json['exam_type'] as String?) ?? 'both',
       questions: questions ?? [],
     );
   }

@@ -105,8 +105,14 @@ class AnalyticsRepository {
   // ─── Attempt Analytics ───
 
   /// Save the full analytics for a completed attempt.
+  ///
+  /// `onConflict: 'attempt_id'` so re-analyzing the same attempt UPDATES the
+  /// existing row instead of colliding with the `UNIQUE(attempt_id)` constraint
+  /// (the auto-generated `id` PK would otherwise never match → duplicate-key).
   Future<void> saveAttemptAnalytics(AttemptAnalyticsResult result) async {
-    await _client.from('attempt_analytics').upsert(result.toJson());
+    await _client
+        .from('attempt_analytics')
+        .upsert(result.toJson(), onConflict: 'attempt_id');
   }
 
   /// Fetch analytics for a specific attempt.
@@ -172,6 +178,14 @@ class AnalyticsRepository {
   }
 
   /// Insert or update a topic performance entry.
+  ///
+  /// `onConflict: 'user_id,topic_id'` is REQUIRED: the table's only relevant
+  /// constraint is `UNIQUE(user_id, topic_id)`. Without naming it, PostgREST
+  /// conflict-targets the `id` PK, generates a fresh id every call, never
+  /// matches, and the second test a user takes throws
+  /// `duplicate key value violates unique constraint
+  /// "topic_performance_user_id_topic_id_key"` — which previously aborted the
+  /// whole analytics persistence (no score history, profile stats, etc.).
   Future<void> upsertTopicPerformance({
     required String userId,
     required TopicPerformance performance,
@@ -180,7 +194,7 @@ class AnalyticsRepository {
       'user_id': userId,
       ...performance.toJson(),
       'updated_at': DateTime.now().toIso8601String(),
-    });
+    }, onConflict: 'user_id,topic_id');
   }
 
   // ─── Score History ───
@@ -300,7 +314,7 @@ class AnalyticsRepository {
       'user_id': userId,
       ...updated.toJson(),
       'updated_at': DateTime.now().toIso8601String(),
-    });
+    }, onConflict: 'user_id');
   }
 
   // ─── Recommendations ───
@@ -362,12 +376,15 @@ class AnalyticsRepository {
 
   /// Recompute and update aggregate stats on the profiles table.
   Future<void> updateProfileStats(String userId) async {
-    // Count completed attempts
+    // Count completed attempts. Must include BOTH 'submitted' and 'analyzed':
+    // submitAndAnalyze flips a freshly-submitted attempt to 'analyzed' once the
+    // engine finishes, so an `eq('status','submitted')` filter drops every
+    // fully-processed attempt and under-counts "Tests Taken" / avg score.
     final attempts = await _client
         .from('test_attempts')
         .select('id, score, total_marks')
         .eq('user_id', userId)
-        .eq('status', 'submitted');
+        .inFilter('status', ['submitted', 'analyzed']);
 
     final testsCompleted = attempts.length;
 

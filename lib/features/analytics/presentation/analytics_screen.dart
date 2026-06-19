@@ -12,6 +12,7 @@ import '../data/analytics_providers.dart';
 import '../../auth/data/auth_providers.dart';
 import '../../practice/data/practice_providers.dart';
 import '../../practice/data/practice_repository.dart';
+import '../../test/data/test_providers.dart';
 import '../domain/analytics_models.dart';
 import '../domain/chapter_insight_models.dart';
 import 'widgets/radar_chart_widget.dart';
@@ -149,6 +150,7 @@ class _OverviewTab extends ConsumerWidget {
         ref.invalidate(studyStreakProvider);
         ref.invalidate(recoveryTrackingProvider);
         ref.invalidate(weakChaptersProvider);
+        ref.invalidate(userAttemptsProvider);
         await ref.read(userStatsProvider.future);
       },
       child: SingleChildScrollView(
@@ -205,6 +207,8 @@ class _OverviewTab extends ConsumerWidget {
           ),
 
           const SizedBox(height: 14),
+          const _PastAttemptsCard(),
+          const SizedBox(height: 14),
           const _RecoveryTrackerCard(),
           const SizedBox(height: 14),
           const _WeakChaptersCard(),
@@ -214,6 +218,95 @@ class _OverviewTab extends ConsumerWidget {
       ),
       ),
     );
+  }
+}
+
+// ── Past Attempted Tests — every finished attempt, tap → its full analysis ────
+// This is the widget the completed-test screen's "View Full Analysis" lands on.
+class _PastAttemptsCard extends ConsumerWidget {
+  const _PastAttemptsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final attempts = ref.watch(userAttemptsProvider).valueOrNull ?? const [];
+    if (attempts.isEmpty) return const SizedBox.shrink();
+    final names = ref.watch(testNamesProvider).valueOrNull ?? const {};
+    final recent = attempts.take(8).toList();
+
+    return _SectionCard(
+      title: 'Past Attempted Tests',
+      subtitle: 'Tap a test to see its full analysis',
+      icon: LucideIcons.history,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Column(
+          children: [
+            for (final a in recent)
+              InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => context.push('/results/${a.id}'),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _scoreColor(a.scorePercentage).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${a.scorePercentage.round()}%',
+                          style: AppTypography.labelSmall.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: _scoreColor(a.scorePercentage),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              names[a.testId] ?? 'Test',
+                              style: AppTypography.bodyMedium
+                                  .copyWith(fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              _fmtDate(a.endTime ?? a.startTime),
+                              style: AppTypography.caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(LucideIcons.chevronRight,
+                          size: 16, color: AppColors.textLight),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _scoreColor(double pct) {
+    if (pct >= 70) return AppColors.success;
+    if (pct >= 40) return AppColors.warning;
+    return AppColors.wrong;
+  }
+
+  static String _fmtDate(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 }
 
