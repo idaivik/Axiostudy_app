@@ -4,7 +4,9 @@
 --   • the (user, request) PK makes a repeat vote idempotent (no double-count);
 --   • get_feature_requests() returns ACCURATE counts (aggregates ALL voters via
 --     SECURITY DEFINER) and the CALLER's own has_voted (via auth.uid());
---   • feature_votes RLS isolates voters — a user reads only their OWN votes.
+--   • feature_votes RLS isolates voters — a user reads only their OWN votes;
+--   • is_pro_active() (the server-side Pro gate on submit/vote) mirrors
+--     hasActiveAccess + Pro tier — pro+active ✓, basic ✗, lapsed-pro ✗.
 --
 -- PREREQUISITE: the migration must be APPLIED first, and the Supabase roles
 -- (authenticated) + their default grants must exist (true on any Supabase DB):
@@ -19,11 +21,18 @@
 begin;
 
 -- Fixed test users + requests (cascade-cleaned by the rollback).
-insert into public.profiles (id, email, name, subscription_tier, subscription_status, created_at)
+insert into public.profiles (id, email, name, subscription_tier, subscription_status, subscription_expiry, created_at)
 values
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a@test', 'A', 'pro', 'active', now()),
-  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'b@test', 'B', 'pro', 'active', now())
-on conflict (id) do update set subscription_tier = excluded.subscription_tier;
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a@test', 'A', 'pro',   'active',    null,                   now()),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'b@test', 'B', 'pro',   'active',    null,                   now()),
+  -- C = Basic (active): not entitled to the Pro perk.
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'c@test', 'C', 'basic', 'active',    null,                   now()),
+  -- D = Pro but lapsed (cancelled, paid period already elapsed): no access.
+  ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'd@test', 'D', 'pro',   'cancelled', now() - interval '1 day', now())
+on conflict (id) do update
+  set subscription_tier = excluded.subscription_tier,
+      subscription_status = excluded.subscription_status,
+      subscription_expiry = excluded.subscription_expiry;
 
 insert into public.feature_requests (id, title)
 values
@@ -34,11 +43,24 @@ do $$
 declare
   a   constant uuid := 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   b   constant uuid := 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  c   constant uuid := 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  d   constant uuid := 'dddddddd-dddd-dddd-dddd-dddddddddddd';
   rq1 constant uuid := '11111111-0000-0000-0000-000000000001';
   rq2 constant uuid := '11111111-0000-0000-0000-000000000002';
   n   int;
   r   record;
 begin
+  -- ── Server-side Pro gate: is_pro_active mirrors hasActiveAccess + Pro tier ──
+  if not public.is_pro_active(a) then
+    raise exception 'A (pro+active) should be pro_active';
+  end if;
+  if public.is_pro_active(c) then
+    raise exception 'C (basic) must NOT be pro_active';
+  end if;
+  if public.is_pro_active(d) then
+    raise exception 'D (lapsed pro, expiry in the past) must NOT be pro_active';
+  end if;
+
   -- ── Votes (as table owner — RLS bypassed for the seed) ──
   -- A votes rq1 + rq2; B votes rq1.
   insert into public.feature_votes (user_id, request_id) values
