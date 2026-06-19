@@ -160,6 +160,24 @@ void main() {
     });
   });
 
+  group('Bucket 3A tier surfaces (BILLING_BUCKET3A_BUILD_PROMPT.md)', () {
+    final basic = _user(tier: SubscriptionTier.basic);
+    final pro = _user(tier: SubscriptionTier.pro);
+
+    test('Pro unlocks the three Pro AI artifacts', () {
+      // F1 revision plan (deterministic), F2 AI notes, F3 AI formula sheet.
+      expect(pro.can(Feature.advancedRevisionPlan), isTrue);
+      expect(pro.can(Feature.aiNotes), isTrue);
+      expect(pro.can(Feature.aiFormulaSheet), isTrue);
+    });
+
+    test('Basic is locked out of all three', () {
+      expect(basic.can(Feature.advancedRevisionPlan), isFalse);
+      expect(basic.can(Feature.aiNotes), isFalse);
+      expect(basic.can(Feature.aiFormulaSheet), isFalse);
+    });
+  });
+
   group('Pro→Basic downgrade (§10)', () {
     test('downgrade drops Pro-only capabilities but keeps the floor', () {
       final pro = _user(tier: SubscriptionTier.pro);

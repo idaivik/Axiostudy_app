@@ -134,6 +134,37 @@ begin
   if (r->>'ok')::boolean then raise exception 'pro breakdown 201 should fail, got %', r; end if;
   if r->>'reason' <> 'cap_reached' then raise exception 'pro breakdown 201 reason should be cap_reached, got %', r; end if;
 
+  -- ── Bucket 3A · Feature 2: ai_note (Pro 60) — BILLING_BUCKET3A §2 ──
+  -- Pro: 60 ok, 61st soft-capped.
+  for i in 1..60 loop
+    r := public.consume_meter(pro, 'ai_note', 1);
+    if not (r->>'ok')::boolean then
+      raise exception 'pro ai_note #% should succeed, got %', i, r;
+    end if;
+  end loop;
+  if (r->>'remaining')::int <> 0 then
+    raise exception 'pro ai_note remaining after 60 should be 0, got %', r;
+  end if;
+  r := public.consume_meter(pro, 'ai_note', 1);
+  if (r->>'ok')::boolean then raise exception 'pro ai_note 61 should fail, got %', r; end if;
+  if r->>'reason' <> 'cap_reached' then raise exception 'pro ai_note 61 reason should be cap_reached, got %', r; end if;
+
+  -- Trial: ai_note is an ai_ meter → hard-locked (NOTE the formula_sheet meter
+  -- has NO ai_ prefix, so its trial lock is enforced in the edge function, not
+  -- here — see generate-formula-sheet when Feature 3 lands).
+  r := public.consume_meter(trial, 'ai_note', 1);
+  if (r->>'ok')::boolean then raise exception 'trial ai_note should fail, got %', r; end if;
+  if r->>'reason' <> 'trial_ai_locked' then raise exception 'trial ai_note reason should be trial_ai_locked, got %', r; end if;
+
+  -- Basic: not entitled to a Pro-only meter → no_entitlement (fail-closed).
+  r := public.consume_meter(basic, 'ai_note', 1);
+  if (r->>'ok')::boolean then raise exception 'basic ai_note should fail, got %', r; end if;
+  if r->>'reason' <> 'no_entitlement' then raise exception 'basic ai_note reason should be no_entitlement, got %', r; end if;
+
+  -- Notes CACHING (second open spends no meter) is enforced in the generate-notes
+  -- edge fn (it returns the stored study_notes row BEFORE consume_meter), so it
+  -- can't be exercised from pure SQL — same as the narrative cache below.
+
   -- Narrative CACHING (second open spends no meter) is enforced in the
   -- analysis-narrative edge fn (it returns the cached attempt_analytics.ai_narrative
   -- BEFORE calling consume_meter), so it can't be exercised from pure SQL here —
