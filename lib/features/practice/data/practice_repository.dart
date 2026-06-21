@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../test/domain/test_models.dart';
 import '../../../shared/models/enums.dart';
@@ -175,6 +176,122 @@ class PracticeRepository {
       subjectIds: questions.map((q) => q.subjectId).toSet().toList(),
       questions: questions,
     );
+  }
+
+  // ── Subtopic practice tests (fixed 10/10/10 named sets) ────────────────────
+
+  /// Questions per difficulty band in a full test.
+  static const int _testBand = 10;
+
+  /// Group a subtopic's question COUNTS into named tests. Each full test is
+  /// 10 easy + 10 medium + 10 hard; once the full sets are used up the leftover
+  /// questions form a final, smaller test — e.g. (E25,M30,H22) → [30, 30, 17].
+  static List<SubtopicTest> testsFromCounts(int easy, int medium, int hard) {
+    final full = [easy, medium, hard].reduce(min) ~/ _testBand;
+    final tests = <SubtopicTest>[];
+    for (var k = 0; k < full; k++) {
+      tests.add(SubtopicTest(
+        index: k + 1,
+        questionCount: _testBand * 3,
+        easyCount: _testBand,
+        mediumCount: _testBand,
+        hardCount: _testBand,
+      ));
+    }
+    final remE = easy - full * _testBand;
+    final remM = medium - full * _testBand;
+    final remH = hard - full * _testBand;
+    if (remE + remM + remH > 0) {
+      tests.add(SubtopicTest(
+        index: full + 1,
+        questionCount: remE + remM + remH,
+        easyCount: remE,
+        mediumCount: remM,
+        hardCount: remH,
+      ));
+    }
+    return tests;
+  }
+
+  /// Descriptor list of the named tests available for a subtopic (counts only).
+  Future<List<SubtopicTest>> subtopicTests(String subtopicId) async {
+    final rows = await _client
+        .from('questions')
+        .select('difficulty')
+        .eq('subtopic_id', subtopicId)
+        .eq('status', 'active');
+    var e = 0, m = 0, h = 0;
+    for (final r in rows) {
+      switch (r['difficulty']) {
+        case 'easy':
+          e++;
+        case 'hard':
+          h++;
+        default:
+          m++;
+      }
+    }
+    return testsFromCounts(e, m, h);
+  }
+
+  /// Build the [testIndex]-th (1-based) named practice test for a subtopic — a
+  /// fixed 10/10/10 set (or the smaller remainder for the last test). Unlike
+  /// adaptive practice these are stable/repeatable, so already-seen questions are
+  /// NOT excluded.
+  Future<Test> buildSubtopicTest({
+    required String subtopicId,
+    required int testIndex,
+    String? subtopicName,
+  }) async {
+    final data = await _client
+        .from('questions')
+        .select()
+        .eq('subtopic_id', subtopicId)
+        .eq('status', 'active');
+    final all = data.map((j) => Question.fromJson(j)).toList();
+
+    List<Question> band(Difficulty d) =>
+        all.where((q) => q.difficulty == d).toList()
+          ..sort((a, b) => a.id.compareTo(b.id));
+    final groups = _groupQuestions(
+      band(Difficulty.easy),
+      band(Difficulty.medium),
+      band(Difficulty.hard),
+    );
+
+    final name = subtopicName == null
+        ? 'Practice Test $testIndex'
+        : '$subtopicName · Test $testIndex';
+    if (testIndex < 1 || testIndex > groups.length) {
+      return _sessionTest(const [], name);
+    }
+    return _sessionTest(groups[testIndex - 1], name);
+  }
+
+  /// Chunk difficulty-sorted question lists into tests (mirrors [testsFromCounts]).
+  List<List<Question>> _groupQuestions(
+    List<Question> easy,
+    List<Question> medium,
+    List<Question> hard,
+  ) {
+    final full =
+        [easy.length, medium.length, hard.length].reduce(min) ~/ _testBand;
+    final groups = <List<Question>>[];
+    for (var k = 0; k < full; k++) {
+      groups.add([
+        ...easy.sublist(k * _testBand, (k + 1) * _testBand),
+        ...medium.sublist(k * _testBand, (k + 1) * _testBand),
+        ...hard.sublist(k * _testBand, (k + 1) * _testBand),
+      ]);
+    }
+    final used = full * _testBand;
+    final remaining = [
+      ...easy.sublist(used),
+      ...medium.sublist(used),
+      ...hard.sublist(used),
+    ];
+    if (remaining.isNotEmpty) groups.add(remaining);
+    return groups;
   }
 
   // ── Generation (the only paid path) ───────────────────────────────────────

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/supabase/supabase_providers.dart';
 import '../../subjects/data/subjects_providers.dart';
 import '../../test/domain/test_models.dart';
+import '../domain/practice_models.dart';
 import 'practice_repository.dart';
 
 /// The practice engine repository (pool retrieval, adaptive sessions, generation).
@@ -22,3 +23,10 @@ final chapterNamesProvider = FutureProvider<Map<String, String>>((ref) async {
 /// shared test runner can pick it up after navigation (sessions aren't stored
 /// in the `tests` table — they're assembled on the fly).
 final activePracticeTestProvider = StateProvider<Test?>((ref) => null);
+
+/// The named "Practice Test N" descriptors available for a subtopic, loaded
+/// when the subtopic's test list is opened.
+final subtopicTestsProvider =
+    FutureProvider.family<List<SubtopicTest>, String>((ref, subtopicId) async {
+  return ref.watch(practiceRepositoryProvider).subtopicTests(subtopicId);
+});

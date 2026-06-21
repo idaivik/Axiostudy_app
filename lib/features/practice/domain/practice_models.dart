@@ -9,6 +9,31 @@ class DifficultyBand {
   const DifficultyBand({required this.lo, required this.hi, required this.label});
 }
 
+/// One named practice test within a subtopic ("Practice Test 1", "Practice
+/// Test 2"…). Full tests are 10 easy + 10 medium + 10 hard; once the full
+/// 10/10/10 sets are exhausted the leftover questions form a final, smaller
+/// test (e.g. 30, 30, 17). See PracticeRepository.subtopicTests.
+class SubtopicTest {
+  final int index; // 1-based
+  final int questionCount;
+  final int easyCount;
+  final int mediumCount;
+  final int hardCount;
+
+  const SubtopicTest({
+    required this.index,
+    required this.questionCount,
+    required this.easyCount,
+    required this.mediumCount,
+    required this.hardCount,
+  });
+
+  String get name => 'Practice Test $index';
+
+  /// A remainder test that isn't a full 10/10/10 set yet.
+  bool get isPartial => questionCount < 30;
+}
+
 /// Where the questions in a [GenerationResult] came from (see generate-questions).
 /// `pool`/`bank` are served from the existing question pool at ₹0 and are
 /// indistinguishable to the student; `ai` means net-new generation happened.

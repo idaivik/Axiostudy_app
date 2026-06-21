@@ -92,4 +92,49 @@ class SubjectsRepository {
 
     return subjects;
   }
+
+  /// Subtopics of a topic, ordered for display, each with its `active`-question
+  /// counts by difficulty merged in. Loaded lazily (only when a topic is opened)
+  /// so the main subjects fetch stays light as the question bank grows.
+  Future<List<Subtopic>> getSubtopics(String topicId) async {
+    final subRows = await _client
+        .from('subtopics')
+        .select()
+        .eq('topic_id', topicId)
+        .order('sort_order');
+    if (subRows.isEmpty) return [];
+
+    final ids = subRows.map((s) => s['id'] as String).toList();
+    final qRows = await _client
+        .from('questions')
+        .select('subtopic_id, difficulty')
+        .inFilter('subtopic_id', ids)
+        .eq('status', 'active');
+
+    final easy = <String, int>{};
+    final medium = <String, int>{};
+    final hard = <String, int>{};
+    for (final r in qRows) {
+      final sid = r['subtopic_id'] as String?;
+      if (sid == null) continue;
+      switch (r['difficulty']) {
+        case 'easy':
+          easy[sid] = (easy[sid] ?? 0) + 1;
+        case 'hard':
+          hard[sid] = (hard[sid] ?? 0) + 1;
+        default:
+          medium[sid] = (medium[sid] ?? 0) + 1;
+      }
+    }
+
+    return subRows.map((s) {
+      final id = s['id'] as String;
+      return Subtopic.fromJson(
+        s,
+        easyCount: easy[id] ?? 0,
+        mediumCount: medium[id] ?? 0,
+        hardCount: hard[id] ?? 0,
+      );
+    }).toList();
+  }
 }

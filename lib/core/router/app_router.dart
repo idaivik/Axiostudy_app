@@ -17,6 +17,9 @@ import '../../features/test/presentation/test_screen.dart';
 import '../../features/test/presentation/completed_test_screen.dart';
 import '../../features/results/presentation/results_screen.dart';
 import '../../features/subjects/presentation/chapter_detail_screen.dart';
+import '../../features/subjects/presentation/chapter_topics_screen.dart';
+import '../../features/subjects/presentation/topic_subtopics_screen.dart';
+import '../../features/subjects/presentation/subtopic_tests_screen.dart';
 import '../../features/analytics/presentation/analytics_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/settings_screen.dart';
@@ -166,6 +169,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => ChapterDetailScreen(
           subjectId: state.pathParameters['subjectId']!,
           focusChapterId: state.uri.queryParameters['chapter'],
+        ),
+      ),
+      // Practice drill-down: chapter → topics → subtopics → "Practice Test N".
+      GoRoute(
+        path: '/chapter/:chapterId',
+        builder: (context, state) => ChapterTopicsScreen(
+          chapterId: state.pathParameters['chapterId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/topic/:topicId',
+        builder: (context, state) => TopicSubtopicsScreen(
+          topicId: state.pathParameters['topicId']!,
+          topicName: state.uri.queryParameters['name'],
+        ),
+      ),
+      GoRoute(
+        path: '/subtopic/:subtopicId',
+        builder: (context, state) => SubtopicTestsScreen(
+          subtopicId: state.pathParameters['subtopicId']!,
+          subtopicName: state.uri.queryParameters['name'],
         ),
       ),
       GoRoute(

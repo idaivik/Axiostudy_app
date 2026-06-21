@@ -17,3 +17,10 @@ final subjectsProvider = FutureProvider<List<Subject>>((ref) async {
 
   return await repo.getSubjects(userId: userId);
 });
+
+/// Subtopics of a topic (with per-difficulty question counts), loaded lazily
+/// when the topic is opened in the practice drill-down.
+final subtopicsForTopicProvider =
+    FutureProvider.family<List<Subtopic>, String>((ref, topicId) async {
+  return ref.watch(subjectsRepositoryProvider).getSubtopics(topicId);
+});
