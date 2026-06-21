@@ -4,10 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/widgets/progress_circle.dart';
 import '../../../core/widgets/gradient_background.dart';
 import '../../../core/router/swipe_nav_provider.dart';
-import '../../../shared/models/enums.dart';
 import '../data/analytics_providers.dart';
 import '../../auth/data/auth_providers.dart';
 import '../../practice/data/practice_providers.dart';
@@ -15,6 +13,7 @@ import '../../practice/data/practice_repository.dart';
 import '../../test/data/test_providers.dart';
 import '../domain/analytics_models.dart';
 import '../domain/chapter_insight_models.dart';
+import 'widgets/ai_coach_card.dart';
 import 'widgets/radar_chart_widget.dart';
 import 'widgets/scatter_plot_widget.dart';
 import 'widgets/skill_tree_widget.dart';
@@ -125,25 +124,18 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
   }
 }
 
-// Tab 1: Overview — real data from providers
+// Tab 1: Overview — led by the persistent AI coach (Plan B). The vanity metric
+// row + Subject Mastery circles were removed: the coach answers "where do I
+// stand & why" with a paragraph + a deterministic #1-focus action instead.
 class _OverviewTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statsAsync = ref.watch(userStatsProvider);
-    final masteryAsync = ref.watch(subjectMasteryProvider);
-
-    final stats = statsAsync.valueOrNull ?? {};
-    final mastery = masteryAsync.valueOrNull ?? {};
-
-    final testsTaken = stats['tests_taken'] ?? 0;
-    final avgScore = (stats['avg_score'] as num?)?.toDouble() ?? 0;
-    final streak = stats['current_streak'] ?? 0;
-
     return RefreshIndicator(
       color: AppColors.primary,
       onRefresh: () async {
-        ref.invalidate(userStatsProvider);
-        ref.invalidate(subjectMasteryProvider);
+        // Re-run the account coach (the only metered surface here — its server
+        // source_hash cache means an unchanged refresh costs no credit).
+        ref.invalidate(coachOverviewProvider);
         ref.invalidate(topicPerformanceProvider);
         ref.invalidate(currentUserProvider);
         ref.invalidate(scoreHistoryProvider);
@@ -151,71 +143,26 @@ class _OverviewTab extends ConsumerWidget {
         ref.invalidate(recoveryTrackingProvider);
         ref.invalidate(weakChaptersProvider);
         ref.invalidate(userAttemptsProvider);
-        await ref.read(userStatsProvider.future);
+        await ref.read(coachOverviewProvider.future);
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
         padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Score summary row
-          Row(
-            children: [
-              Expanded(child: _MetricCard(label: 'Tests Taken', value: '$testsTaken', icon: LucideIcons.fileCheck, color: AppColors.primary, bg: AppColors.greenSurface)),
-              const SizedBox(width: 10),
-              Expanded(child: _MetricCard(label: 'Avg Score', value: '${avgScore.round()}%', icon: LucideIcons.star, color: AppColors.mathematics, bg: AppColors.warningLight)),
-              const SizedBox(width: 10),
-              Expanded(child: _MetricCard(label: 'Study Streak', value: '${streak}d', icon: LucideIcons.flame, color: AppColors.weak, bg: AppColors.warningLight)),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Subject comparison circles
-          _SectionCard(
-            title: 'Subject Mastery',
-            subtitle: 'Topic mastery percentage',
-            icon: LucideIcons.pieChart,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _SubjectCircle(
-                    label: 'Physics',
-                    progress: mastery['physics'] ?? 0,
-                    type: SubjectType.physics,
-                    color: AppColors.physics,
-                  ),
-                  _SubjectCircle(
-                    label: 'Chemistry',
-                    progress: mastery['chemistry'] ?? 0,
-                    type: SubjectType.chemistry,
-                    color: AppColors.chemistry,
-                  ),
-                  _SubjectCircle(
-                    label: 'Maths',
-                    progress: mastery['mathematics'] ?? 0,
-                    type: SubjectType.mathematics,
-                    color: AppColors.mathematics,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-          const _PastAttemptsCard(),
-          const SizedBox(height: 14),
-          const _RecoveryTrackerCard(),
-          const SizedBox(height: 14),
-          const _WeakChaptersCard(),
-
-          const SizedBox(height: 80),
-        ],
-      ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            AiCoachCard(),
+            SizedBox(height: 14),
+            _PastAttemptsCard(),
+            SizedBox(height: 14),
+            _RecoveryTrackerCard(),
+            SizedBox(height: 14),
+            _WeakChaptersCard(),
+            SizedBox(height: 80),
+          ],
+        ),
       ),
     );
   }
@@ -775,73 +722,6 @@ class _SectionCard extends StatelessWidget {
           child,
         ],
       ),
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  final String label, value;
-  final IconData icon;
-  final Color color, bg;
-
-  const _MetricCard({required this.label, required this.value, required this.icon, required this.color, required this.bg});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 4)),
-          BoxShadow(color: AppColors.slate900.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 1)),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(height: 8),
-          Text(value, style: AppTypography.heading3),
-          Text(label, style: AppTypography.caption),
-        ],
-      ),
-    );
-  }
-}
-
-class _SubjectCircle extends StatelessWidget {
-  final String label;
-  final double progress;
-  final SubjectType type;
-  final Color color;
-
-  const _SubjectCircle({required this.label, required this.progress, required this.type, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0, end: progress),
-          duration: const Duration(milliseconds: 1000),
-          curve: Curves.easeOutCubic,
-          builder: (context, val, child) => ProgressCircle(
-            progress: val,
-            size: 80,
-            strokeWidth: 7,
-            progressColor: color,
-            centerWidget: Icon(type.iconData, size: 22, color: color),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
-        Text('${(progress * 100).round()}%', style: AppTypography.heading3.copyWith(color: color, fontSize: 15)),
-      ],
     );
   }
 }

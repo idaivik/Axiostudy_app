@@ -13,6 +13,7 @@ import 'widgets/diagnostic_prompt_card.dart';
 import 'widgets/notifications_sheet.dart';
 import 'widgets/readiness_banner.dart';
 import 'widgets/roadmap_home_card.dart';
+import 'widgets/todays_move_card.dart';
 import 'widgets/todays_plan_card.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -77,6 +78,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         onRefresh: () async {
           // Invalidate all home-relevant providers to force full re-fetch
           ref.invalidate(currentUserProvider);
+          ref.invalidate(coachOverviewProvider);
           ref.invalidate(topicPerformanceProvider);
           ref.invalidate(weakTopicsProvider);
           ref.invalidate(scoreHistoryProvider);
@@ -215,6 +217,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   const AnimatedEntrance(
                     delay: Duration(milliseconds: 80),
                     child: DiagnosticPromptCard(),
+                  ),
+                  // "Today's move" — the same deterministic #1 focus as the
+                  // Overview AI coach, surfaced above the (demoted) readiness strip.
+                  const AnimatedEntrance(
+                    delay: Duration(milliseconds: 120),
+                    child: TodaysMoveCard(),
                   ),
                   const AnimatedEntrance(
                     delay: Duration(milliseconds: 160),

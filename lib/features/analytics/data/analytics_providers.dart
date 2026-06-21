@@ -4,6 +4,7 @@ import '../../auth/data/auth_providers.dart';
 import '../domain/analytics_models.dart';
 import '../domain/chapter_insight_models.dart';
 import '../domain/chart_data_models.dart';
+import '../domain/coach_overview.dart';
 import '../domain/narrative_result.dart';
 import 'analytics_repository.dart';
 import 'analytics_engine.dart';
@@ -36,6 +37,17 @@ final analysisNarrativeProvider =
   ref.keepAlive();
   final repo = ref.watch(analyticsRepositoryProvider);
   return repo.getAnalysisNarrative(attemptId);
+});
+
+/// Account-level AI coach for the Overview tab + Home (Plan B). Lazily calls the
+/// `coach-overview` edge function; the server caches on a `source_hash` so a
+/// re-open costs no meter, and the deterministic focus comes back on every
+/// outcome. `keepAlive` so tab switches / scrolls don't re-invoke it; invalidate
+/// it in the Overview `RefreshIndicator` to force a refresh.
+final coachOverviewProvider = FutureProvider<CoachOverview>((ref) async {
+  ref.keepAlive();
+  final repo = ref.watch(analyticsRepositoryProvider);
+  return repo.getCoachOverview();
 });
 
 /// All topic performance for the current user.

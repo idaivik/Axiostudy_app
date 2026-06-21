@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/analytics_models.dart';
 import '../domain/chapter_insight_models.dart';
+import '../domain/coach_overview.dart';
 import '../domain/narrative_result.dart';
 
 /// Repository for reading/writing analytics data to Supabase.
@@ -153,6 +154,31 @@ class AnalyticsRepository {
       return NarrativeResult.error;
     } catch (_) {
       return NarrativeResult.error;
+    }
+  }
+
+  // ─── AI Coach Overview (Plan B, account-level) ───
+
+  /// Fetch (or generate-and-cache) the account-level AI coach via the
+  /// `coach-overview` edge function. The server caches on a `source_hash`, so
+  /// re-opening Overview returns the same text without spending a meter. The
+  /// DETERMINISTIC focus (`focus*`) comes back on EVERY outcome — including the
+  /// 402 locked / paywall body — so the free "#1 focus → Practice" action works
+  /// with no entitlement. Never throws; maps every outcome to a [CoachOverview].
+  Future<CoachOverview> getCoachOverview() async {
+    try {
+      final res = await _client.functions.invoke('coach-overview', body: {});
+      final data = res.data;
+      if (data is Map<String, dynamic>) return CoachOverview.fromJson(data);
+      return CoachOverview.error;
+    } on FunctionException catch (e) {
+      // Non-2xx (e.g. 402 trial_ai_locked / no_entitlement) lands here with the
+      // parsed body — which still carries the focus fields.
+      final details = e.details;
+      if (details is Map<String, dynamic>) return CoachOverview.fromJson(details);
+      return CoachOverview.error;
+    } catch (_) {
+      return CoachOverview.error;
     }
   }
 

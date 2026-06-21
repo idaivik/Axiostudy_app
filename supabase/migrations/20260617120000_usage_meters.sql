@@ -189,5 +189,11 @@ grant execute on function public.consume_meter(uuid, text, int) to authenticated
 grant execute on function public.refund_meter(uuid, text, int)  to authenticated, service_role;
 
 -- ── Retire the single-pool RPCs (replaced by the per-meter design above) ────
-drop function if exists public.consume_generation_credit(uuid);
-drop function if exists public.refund_generation_credit(uuid);
+-- DEFERRED: the live `generate-questions` edge fn (v8) STILL calls
+-- consume_generation_credit / refund_generation_credit. Dropping them here would
+-- break question generation immediately. Re-enable these drops only in a
+-- follow-up migration that ships ALONGSIDE a generate-questions redeploy moving
+-- it onto consume_meter('ai_questions'). Until then the two pools coexist (the
+-- per-meter design gates the new AI surfaces; the legacy pool gates generation).
+-- drop function if exists public.consume_generation_credit(uuid);
+-- drop function if exists public.refund_generation_credit(uuid);
