@@ -165,7 +165,12 @@ class PracticeRepository {
     return _sessionTest(qs, 'Practice · $label');
   }
 
-  Test _sessionTest(List<Question> questions, String name) {
+  Test _sessionTest(
+    List<Question> questions,
+    String name, {
+    String? subtopicId,
+    int? testIndex,
+  }) {
     final mins = (questions.length * 1.5).ceil().clamp(5, 60);
     return Test(
       id: adaptiveTestId,
@@ -175,6 +180,8 @@ class PracticeRepository {
       totalQuestions: questions.length,
       subjectIds: questions.map((q) => q.subjectId).toSet().toList(),
       questions: questions,
+      subtopicId: subtopicId,
+      testIndex: testIndex,
     );
   }
 
@@ -263,9 +270,11 @@ class PracticeRepository {
         ? 'Practice Test $testIndex'
         : '$subtopicName · Test $testIndex';
     if (testIndex < 1 || testIndex > groups.length) {
-      return _sessionTest(const [], name);
+      return _sessionTest(const [], name,
+          subtopicId: subtopicId, testIndex: testIndex);
     }
-    return _sessionTest(groups[testIndex - 1], name);
+    return _sessionTest(groups[testIndex - 1], name,
+        subtopicId: subtopicId, testIndex: testIndex);
   }
 
   /// Chunk difficulty-sorted question lists into tests (mirrors [testsFromCounts]).

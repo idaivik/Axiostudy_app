@@ -82,11 +82,15 @@ class TestRepository {
     return Test.fromJson(testData, questions: questions);
   }
 
-  /// Create a new test attempt.
+  /// Create a new test attempt. For subtopic "Practice Test N" sessions, pass
+  /// [subtopicId] + [testIndex] so the attempt is tagged for roadmap
+  /// auto-completion (null for mock/adaptive/diagnostic attempts).
   Future<TestAttempt> createAttempt({
     required String userId,
     required String testId,
     required int totalMarks,
+    String? subtopicId,
+    int? testIndex,
   }) async {
     final id = 'attempt_${const Uuid().v4().substring(0, 8)}';
     final attempt = TestAttempt(
@@ -96,6 +100,8 @@ class TestRepository {
       startTime: DateTime.now(),
       totalMarks: totalMarks,
       status: TestAttemptStatus.inProgress,
+      subtopicId: subtopicId,
+      testIndex: testIndex,
     );
 
     await _client.from('test_attempts').insert(attempt.toJson());

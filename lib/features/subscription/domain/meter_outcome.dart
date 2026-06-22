@@ -33,7 +33,22 @@ class MeterOutcome {
   /// Effective plan the server resolved ('basic' | 'pro' | 'free').
   final String? plan;
 
-  const MeterOutcome(this.status, {this.remaining, this.plan});
+  /// Cycle cap + usage for this meter (from the read-only `meter_status` peek;
+  /// null on the consume path, which only reports `remaining`).
+  final int? limit;
+  final int? used;
+
+  /// When the monthly cycle rolls over (from `meter_status`).
+  final DateTime? resetsAt;
+
+  const MeterOutcome(
+    this.status, {
+    this.remaining,
+    this.plan,
+    this.limit,
+    this.used,
+    this.resetsAt,
+  });
 
   bool get ok => status == MeterStatus.ok;
   bool get isTrialLocked => status == MeterStatus.trialLocked;
@@ -48,32 +63,38 @@ class MeterOutcome {
     bool ok = false,
     int? remaining,
     String? plan,
+    int? limit,
+    int? used,
+    DateTime? resetsAt,
   }) {
-    if (ok) return MeterOutcome(MeterStatus.ok, remaining: remaining, plan: plan);
-    switch (reason) {
-      case 'trial_ai_locked':
-        return MeterOutcome(MeterStatus.trialLocked,
-            remaining: remaining, plan: plan);
-      case 'no_entitlement':
-      case 'free_plan_no_generation':
-        return MeterOutcome(MeterStatus.noEntitlement,
-            remaining: remaining, plan: plan);
-      case 'cap_reached':
-      case 'monthly_cap_reached':
-        return MeterOutcome(MeterStatus.capReached,
-            remaining: remaining, plan: plan);
-      default:
-        return MeterOutcome(MeterStatus.error, remaining: remaining, plan: plan);
-    }
+    final status = ok
+        ? MeterStatus.ok
+        : switch (reason) {
+            'trial_ai_locked' => MeterStatus.trialLocked,
+            'no_entitlement' || 'free_plan_no_generation' =>
+              MeterStatus.noEntitlement,
+            'cap_reached' || 'monthly_cap_reached' => MeterStatus.capReached,
+            _ => MeterStatus.error,
+          };
+    return MeterOutcome(status,
+        remaining: remaining,
+        plan: plan,
+        limit: limit,
+        used: used,
+        resetsAt: resetsAt);
   }
 
-  /// Parse a `consume_meter` jsonb result or a metered edge-function body
-  /// (`{ ok, reason?, remaining?, plan? }`).
+  /// Parse a `consume_meter` jsonb result, a metered edge-function body, or a
+  /// `meter_status` peek (`{ ok, reason?, remaining?, plan?, limit?, used?,
+  /// resets_at? }`).
   factory MeterOutcome.fromJson(Map<String, dynamic> j) =>
       MeterOutcome.fromReason(
         j['reason'] as String?,
         ok: j['ok'] == true,
         remaining: (j['remaining'] as num?)?.toInt(),
         plan: j['plan'] as String?,
+        limit: (j['limit'] as num?)?.toInt(),
+        used: (j['used'] as num?)?.toInt(),
+        resetsAt: DateTime.tryParse(j['resets_at'] as String? ?? ''),
       );
 }

@@ -76,6 +76,13 @@ class Test {
   /// Mock Tests list — a `'both'` test is shown to every student.
   final String examType;
 
+  /// For an on-the-fly subtopic "Practice Test N" session: the subtopic it
+  /// drills and the 1-based test index. Null for mock/diagnostic/adaptive
+  /// sessions. Carried onto the [TestAttempt] so the roadmap can auto-complete
+  /// a chapter once every subtopic clears enough passing tests.
+  final String? subtopicId;
+  final int? testIndex;
+
   const Test({
     required this.id,
     required this.name,
@@ -85,6 +92,8 @@ class Test {
     required this.subjectIds,
     required this.questions,
     this.examType = 'both',
+    this.subtopicId,
+    this.testIndex,
   });
 
   /// Whether this test should be shown to a student preparing for [userExam]
@@ -188,6 +197,12 @@ class TestAttempt {
   final int? totalMarks;
   final TestAttemptStatus status;
 
+  /// Subtopic + 1-based test index this attempt drilled, when it was launched
+  /// as a subtopic "Practice Test N" (null otherwise). Drives roadmap
+  /// auto-completion via `roadmap_chapter_progress()`.
+  final String? subtopicId;
+  final int? testIndex;
+
   const TestAttempt({
     required this.id,
     required this.userId,
@@ -198,6 +213,8 @@ class TestAttempt {
     this.score,
     this.totalMarks,
     this.status = TestAttemptStatus.inProgress,
+    this.subtopicId,
+    this.testIndex,
   });
 
   /// Create from Supabase `test_attempts` row.
@@ -214,11 +231,14 @@ class TestAttempt {
       score: json['score'] as int?,
       totalMarks: json['total_marks'] as int?,
       status: _parseStatus(json['status'] as String?),
+      subtopicId: json['subtopic_id'] as String?,
+      testIndex: json['test_index'] as int?,
       answers: answers ?? {},
     );
   }
 
-  /// Convert to JSON for Supabase insert.
+  /// Convert to JSON for Supabase insert. The subtopic columns are only emitted
+  /// for subtopic tests, so mock/adaptive inserts stay schema-compatible.
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -229,6 +249,8 @@ class TestAttempt {
       'score': score,
       'total_marks': totalMarks,
       'status': _statusToString(status),
+      if (subtopicId != null) 'subtopic_id': subtopicId,
+      if (testIndex != null) 'test_index': testIndex,
     };
   }
 
@@ -266,6 +288,8 @@ class TestAttempt {
     int? score,
     int? totalMarks,
     TestAttemptStatus? status,
+    String? subtopicId,
+    int? testIndex,
   }) {
     return TestAttempt(
       id: id ?? this.id,
@@ -277,6 +301,8 @@ class TestAttempt {
       score: score ?? this.score,
       totalMarks: totalMarks ?? this.totalMarks,
       status: status ?? this.status,
+      subtopicId: subtopicId ?? this.subtopicId,
+      testIndex: testIndex ?? this.testIndex,
     );
   }
 

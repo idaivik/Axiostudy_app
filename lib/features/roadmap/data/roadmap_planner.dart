@@ -137,13 +137,18 @@ class RoadmapPlanner {
     );
   }
 
-  /// Days allotted per chapter: spread remaining "learning time" (≈70% of the
-  /// runway to the exam, leaving the rest for revision + mocks) across the
-  /// chapters left to learn. Clamped to a sane 1–3 week window.
+  /// Days allotted per chapter: spread the "learning" slice of the runway to the
+  /// exam across the chapters left to learn, leaving the rest for revision +
+  /// mocks. The slice scales with the student's daily study time — more hours
+  /// compresses the learn phase (freeing calendar room for revision), fewer
+  /// stretches it; 120 min/day is the neutral point. Clamped to a sane 1–3 week
+  /// window.
   int _learnWindowDays(StudentEnrollment enrollment, int remainingChapters) {
     final days = enrollment.daysToExam;
     if (days == null || days <= 0 || remainingChapters <= 0) return 14;
-    final learnDays = (days * 0.7).floor();
+    final intensity = (enrollment.dailyMinutes / 120.0).clamp(0.5, 2.0);
+    final learnFraction = (0.7 / intensity).clamp(0.45, 0.85);
+    final learnDays = (days * learnFraction).floor();
     final per = (learnDays / remainingChapters).floor();
     return per.clamp(7, 21);
   }

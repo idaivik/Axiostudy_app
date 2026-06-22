@@ -130,6 +130,19 @@ enum ExamType {
       s == 'neet' ? ExamType.neet : ExamType.jee;
 
   String get asString => name;
+
+  /// Fixed exam day for this track — JEE ≈ Jan 24, NEET ≈ May 4. Returns the
+  /// next occurrence on/after [from] (today by default), rolling to next year
+  /// once this year's date has passed. Hardcoded because these barely move
+  /// year-to-year, so the student no longer picks a date in setup.
+  DateTime nextExamDate([DateTime? from]) {
+    final today = DateUtils.dateOnly(from ?? DateTime.now());
+    final month = this == ExamType.neet ? 5 : 1;
+    final day = this == ExamType.neet ? 4 : 24;
+    var d = DateTime(today.year, month, day);
+    if (d.isBefore(today)) d = DateTime(today.year + 1, month, day);
+    return d;
+  }
 }
 
 /// A coaching institute (or the Standard / Custom pseudo-institutes).
@@ -371,6 +384,90 @@ class RoadmapItem {
         'reason': reason,
       };
 }
+
+/// Which roadmap rows a chapter has earned automatically from subtopic-test
+/// performance (see `roadmap_chapter_progress()`). A chapter only appears here
+/// once *every* one of its subtopics clears the relevant tier:
+///   * [RoadmapItemType.learn]    — 3 different passing (>60%) tests per subtopic.
+///   * [RoadmapItemType.revise]   — 6 passing tests per subtopic (cumulative).
+///   * [RoadmapItemType.practice] — 9 passing tests per subtopic (cumulative).
+class ChapterAutoCompletion {
+  /// chapterId → the roadmap item types it has auto-completed.
+  final Map<String, Set<RoadmapItemType>> doneTypesByChapter;
+
+  const ChapterAutoCompletion(this.doneTypesByChapter);
+
+  static const empty = ChapterAutoCompletion(<String, Set<RoadmapItemType>>{});
+
+  bool isDone(RoadmapItemType type, String chapterId) =>
+      doneTypesByChapter[chapterId]?.contains(type) ?? false;
+}
+
+/// Whether the student has practiced enough for the AI to build a detailed,
+/// pace-tuned roadmap — and, if not, a projected date when they will. Computed
+/// server-side by `roadmap_readiness()`; cached client-side so repeated
+/// "Generate" taps don't re-query (a manual refresh bypasses the cache).
+class RoadmapReadiness {
+  final bool ready;
+  final int distinctChapters;
+  final int passingTests;
+  final int minChapters;
+  final int minTests;
+
+  /// Projected date the student will have enough data (null when there's no
+  /// recent practice to extrapolate from — the UI then shows a plain prompt).
+  final DateTime? predictedReadyDate;
+
+  /// When this verdict was computed (drives the re-check cooldown).
+  final DateTime checkedAt;
+
+  RoadmapReadiness({
+    required this.ready,
+    required this.distinctChapters,
+    required this.passingTests,
+    this.minChapters = 3,
+    this.minTests = 10,
+    this.predictedReadyDate,
+    DateTime? checkedAt,
+  }) : checkedAt = checkedAt ?? DateTime.now();
+
+  factory RoadmapReadiness.notReady() =>
+      RoadmapReadiness(ready: false, distinctChapters: 0, passingTests: 0);
+
+  /// Re-check at most once a day; a manual refresh forces a fresh check.
+  bool get isStale =>
+      DateTime.now().difference(checkedAt) > const Duration(hours: 24);
+
+  /// 0..1 progress toward unlocking, averaging chapter breadth and test volume.
+  double get progress {
+    final c = (distinctChapters / minChapters).clamp(0.0, 1.0);
+    final t = (passingTests / minTests).clamp(0.0, 1.0);
+    return ((c + t) / 2).clamp(0.0, 1.0);
+  }
+
+  factory RoadmapReadiness.fromJson(Map<String, dynamic> j) => RoadmapReadiness(
+        ready: j['ready'] == true,
+        distinctChapters: (j['distinct_chapters'] as num?)?.toInt() ?? 0,
+        passingTests: (j['passing_tests'] as num?)?.toInt() ?? 0,
+        minChapters: (j['min_chapters'] as num?)?.toInt() ?? 3,
+        minTests: (j['min_tests'] as num?)?.toInt() ?? 10,
+        predictedReadyDate: _tryDate(j['predicted_ready_date']),
+        checkedAt: _tryDate(j['checked_at']) ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'ready': ready,
+        'distinct_chapters': distinctChapters,
+        'passing_tests': passingTests,
+        'min_chapters': minChapters,
+        'min_tests': minTests,
+        'predicted_ready_date':
+            predictedReadyDate?.toIso8601String().split('T').first,
+        'checked_at': checkedAt.toIso8601String(),
+      };
+}
+
+DateTime? _tryDate(dynamic v) => v is String ? DateTime.tryParse(v) : null;
 
 /// A generated, dated study plan.
 class Roadmap {

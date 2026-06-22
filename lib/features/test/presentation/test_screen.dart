@@ -9,6 +9,7 @@ import '../../../core/notifications/notification_service.dart';
 import '../../../shared/models/enums.dart';
 import '../../analytics/data/analytics_providers.dart';
 import '../../practice/data/practice_providers.dart';
+import '../../roadmap/data/roadmap_providers.dart';
 import '../domain/test_models.dart';
 import '../data/test_providers.dart';
 import 'widgets/question_view.dart';
@@ -81,6 +82,8 @@ class _TestScreenState extends ConsumerState<TestScreen> {
             userId: userId,
             testId: test.id,
             totalMarks: test.questions.length * _marksPerQuestion,
+            subtopicId: test.subtopicId,
+            testIndex: test.testIndex,
           );
           attemptId = attempt.id;
         } catch (_) {
@@ -253,6 +256,12 @@ class _TestScreenState extends ConsumerState<TestScreen> {
       }
     } catch (_) {
       // Submission failed — the attempt row still exists; results may be partial.
+    }
+
+    // A subtopic test may have just pushed a chapter past an auto-complete tier;
+    // refresh the roadmap's completion view so it reflects the new attempt.
+    if (test.subtopicId != null) {
+      ref.invalidate(chapterAutoCompletionProvider);
     }
 
     ref.read(activePracticeTestProvider.notifier).state = null;

@@ -22,29 +22,19 @@ class RoadmapSetupScreen extends ConsumerStatefulWidget {
 }
 
 class _RoadmapSetupScreenState extends ConsumerState<RoadmapSetupScreen> {
-  String _coachingId = 'allen';
   ExamType _examType = ExamType.jee;
-  DateTime? _examDate;
   int _dailyMinutes = 120;
   int _currentPosition = 0;
   bool _saving = false;
 
-  List<CoachingInstitute> get _institutes => RoadmapSeedData.institutes;
+  // Everyone shares the standard (NCERT-order) baseline now — the coaching
+  // picker is gone. The exam date is derived from the track, not asked for.
+  static const _coachingId = 'standard';
 
   SyllabusSequence get _sequence =>
       RoadmapSeedData.sequenceFor(_coachingId, examType: _examType);
 
-  Future<void> _pickExamDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _examDate ?? DateTime(now.year + 1, 1, 24),
-      firstDate: now,
-      lastDate: DateTime(now.year + 3),
-      helpText: 'Select your ${_examType.label} date',
-    );
-    if (picked != null) setState(() => _examDate = picked);
-  }
+  DateTime get _examDate => _examType.nextExamDate();
 
   Future<void> _save() async {
     setState(() => _saving = true);
@@ -60,6 +50,12 @@ class _RoadmapSetupScreenState extends ConsumerState<RoadmapSetupScreen> {
     if (!mounted) return;
     context.go('/roadmap');
   }
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  String _fmtDate(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
 
   @override
   Widget build(BuildContext context) {
@@ -112,26 +108,26 @@ class _RoadmapSetupScreenState extends ConsumerState<RoadmapSetupScreen> {
               );
             }).toList(),
           ),
-          const SizedBox(height: 24),
-
-          // ── Coaching ──
-          _SectionLabel('Where are you preparing?'),
-          const SizedBox(height: 10),
-          ..._institutes.map((c) => _CoachingTile(
-                institute: c,
-                selected: _coachingId == c.id,
-                onTap: () => setState(() {
-                  _coachingId = c.id;
-                  _currentPosition = 0;
-                }),
-              )),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(LucideIcons.calendarClock, size: 14, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'We\'ll pace you toward the next ${_examType.label} — ${_fmtDate(_examDate)}.',
+                  style: AppTypography.caption,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
 
           // ── Current position in syllabus ──
-          _SectionLabel('Which chapter is your class on now?'),
+          _SectionLabel('How far have you studied?'),
           const SizedBox(height: 6),
           Text(
-            'Everything before it becomes revision; everything after becomes '
+            'Everything up to here becomes revision; everything after becomes '
             'your upcoming plan.',
             style: AppTypography.caption,
           ),
@@ -140,16 +136,6 @@ class _RoadmapSetupScreenState extends ConsumerState<RoadmapSetupScreen> {
             entries: entries,
             value: _currentPosition,
             onChanged: (v) => setState(() => _currentPosition = v),
-          ),
-          const SizedBox(height: 24),
-
-          // ── Exam date ──
-          _SectionLabel('When is your exam?'),
-          const SizedBox(height: 10),
-          _DateField(
-            date: _examDate,
-            placeholder: 'Tap to pick your ${_examType.label} date',
-            onTap: _pickExamDate,
           ),
           const SizedBox(height: 24),
 
@@ -226,60 +212,6 @@ class _ChoiceChip extends StatelessWidget {
   }
 }
 
-class _CoachingTile extends StatelessWidget {
-  final CoachingInstitute institute;
-  final bool selected;
-  final VoidCallback onTap;
-  const _CoachingTile({
-    required this.institute,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: PressableScale(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: selected ? AppColors.primary : AppColors.divider,
-              width: 1.5,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                institute.isCustom ? LucideIcons.penTool : LucideIcons.graduationCap,
-                size: 20,
-                color: selected ? AppColors.primary : AppColors.textLight,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  institute.name,
-                  style: AppTypography.bodyLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: selected ? AppColors.primary : AppColors.textDark,
-                  ),
-                ),
-              ),
-              if (selected)
-                const Icon(LucideIcons.checkCircle2,
-                    size: 20, color: AppColors.primary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CurrentChapterDropdown extends StatelessWidget {
   final List<SyllabusEntry> entries;
   final int value;
@@ -322,43 +254,3 @@ class _CurrentChapterDropdown extends StatelessWidget {
   }
 }
 
-class _DateField extends StatelessWidget {
-  final DateTime? date;
-  final String placeholder;
-  final VoidCallback onTap;
-  const _DateField({
-    required this.date,
-    required this.placeholder,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider, width: 1.5),
-        ),
-        child: Row(
-          children: [
-            const Icon(LucideIcons.calendar, size: 20, color: AppColors.primary),
-            const SizedBox(width: 12),
-            Text(
-              date == null
-                  ? placeholder
-                  : '${date!.day}/${date!.month}/${date!.year}',
-              style: AppTypography.bodyLarge.copyWith(
-                color: date == null ? AppColors.textLight : AppColors.textDark,
-                fontWeight: date == null ? FontWeight.w400 : FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
